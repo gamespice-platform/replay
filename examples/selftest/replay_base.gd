@@ -2,7 +2,7 @@ extends Node
 
 ## The harness and fixtures every replay self-test section runs on.
 
-const DIR := "user://dot_replay_selftest"
+const DIR := "user://gs_replay_selftest"
 
 var _passed := 0
 var _failed := 0

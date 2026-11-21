@@ -2,11 +2,11 @@
 .godot/
 /android/
 
-# dot-core is a separate repository. For local development, symlink it:
-#   ln -s ../../dot-core/addons/dot_core addons/dot_core
+# gs-core is a separate repository. For local development, symlink it:
+#   ln -s ../../gs-core/addons/gs_core addons/gs_core
 # Consumers copy both addons into their own project.
-/addons/dot_core
-/addons/dot_profile
+/addons/gs_core
+/addons/gs_profile
 
 # Exports
 build/
@@ -19,6 +19,6 @@ Thumbs.db
 # Editors
 .vscode/
 
-# Only examples/net_selftest needs dot-net (the one check that runs the net tap against it):
-#   ln -s ../../dot-net/addons/dot_net addons/dot_net
-/addons/dot_net
+# Only examples/net_selftest needs gs-net (the one check that runs the net tap against it):
+#   ln -s ../../gs-net/addons/gs_net addons/gs_net
+/addons/gs_net

@@ -5,7 +5,7 @@ extends Node
 ## kills, replays the last kill at match end. Per-game differences are hooks (`state_fn`,
 ## `place_body_fn`, ...; see docs/killcam-host.md). Player ids are any one Variant kind.
 
-var log_channel := "dot.killcam"
+var log_channel := "gs.killcam"
 
 ## Skip keys: the keys a player's hands are already on.
 var skip_actions: PackedStringArray = ["ui_cancel"]

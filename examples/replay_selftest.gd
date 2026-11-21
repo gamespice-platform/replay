@@ -1,8 +1,8 @@
 extends "res://examples/selftest/replay_base.gd"
 
-## Exercises dot-replay end to end: record, write, read, seek, cut short, tamper, play.
+## Exercises gs-replay end to end: record, write, read, seek, cut short, tamper, play.
 ## The seeking section compares a seek's state with the true state at every boundary tick.
-## Files go under [code]user://dot_replay_selftest[/code], emptied first.
+## Files go under [code]user://gs_replay_selftest[/code], emptied first.
 
 const SECTIONS := 12
 const CHECKS := 112
@@ -14,7 +14,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	_line("dot-replay self-test")
+	_line("gs-replay self-test")
 	_line("")
 	_clean_dir()
 
@@ -413,7 +413,7 @@ func _test_version_and_bounds() -> void:
 	other[0] = 0x44
 	other[1] = 0x52
 	other[2] = 0x50
-	other[3] = 0x31  # dot-timer's run replays start "DRP1"
+	other[3] = 0x31  # gs-timer's run replays start "DRP1"
 	var r2 := GSReplayFile.new().open(_write_bytes("v_magic.dreplay", other))
 	_check(not r2.ok and r2.code() == GSError.CODE_PARSE, "a file that is not a match demo is refused as one")
 
@@ -683,8 +683,8 @@ func _test_limits() -> void:
 
 func _test_user_cfg() -> void:
 	_section("replay.yml: defaults, file, user tier, schema")
-	var base := "user://cfg/addons/dot_replay"
-	var user := "user://cfg/user/addons/dot_replay"
+	var base := "user://cfg/addons/gs_replay"
+	var user := "user://cfg/user/addons/gs_replay"
 	GSPaths.remove_tree(base)
 	GSPaths.remove_tree(user)
 	GSAddonConfig.set_user_tier(false)
@@ -701,7 +701,7 @@ func _test_user_cfg() -> void:
 
 	var entry := GSReplayConfig.user_cfg_entry()
 	GSAddonConfig.set_user_tier(true)
-	var saved := GSAddonConfig.save_user("dot-replay", "replay.yml", {"replay_ring_seconds": 200.0}, entry["schema"])
+	var saved := GSAddonConfig.save_user("gs-replay", "replay.yml", {"replay_ring_seconds": 200.0}, entry["schema"])
 	_check(saved.ok, "a player's value inside the range is saved")
 	c = GSReplayConfig.new()
 	_check(c.load_cfg("replay.yml", "").ok and c.ring_seconds == 200.0 and c.compression == "gzip", "the user tier wins over the file, other keys stay")
@@ -711,15 +711,15 @@ func _test_user_cfg() -> void:
 	_check(c.load_cfg("replay.yml", "").ok and c.ring_seconds == 120.0, "with the tier off the player's file is ignored")
 
 	GSAddonConfig.set_user_tier(true)
-	var bad := GSAddonConfig.save_user("dot-replay", "replay.yml", {"replay_ring_seconds": 99999.0}, entry["schema"])
+	var bad := GSAddonConfig.save_user("gs-replay", "replay.yml", {"replay_ring_seconds": 99999.0}, entry["schema"])
 	_check(not bad.ok and bad.code() == GSError.CODE_INVALID, "the schema refuses an out-of-range value")
-	var bad2 := GSAddonConfig.save_user("dot-replay", "replay.yml", {"replay_compression": "lzma"}, entry["schema"])
+	var bad2 := GSAddonConfig.save_user("gs-replay", "replay.yml", {"replay_compression": "lzma"}, entry["schema"])
 	_check(not bad2.ok, "and an unknown compression")
 
 	var names := []
 	for e in entry["schema"]:
 		names.append(e["name"])
-	_check(entry["addon"] == "dot-replay" and entry["file"] == "replay.yml" and entry["label"] != "" and names == ["replay_ring_seconds", "replay_keyframe_seconds", "replay_compression"], "the entry has addon, file, label and the three fields")
+	_check(entry["addon"] == "gs-replay" and entry["file"] == "replay.yml" and entry["label"] != "" and names == ["replay_ring_seconds", "replay_keyframe_seconds", "replay_compression"], "the entry has addon, file, label and the three fields")
 	_check(entry["schema"][0]["max"] == 3600.0 and entry["schema"][1]["max"] == 600.0, "ranges come from the exports")
 
 	GSAddonConfig.set_user_tier(false)

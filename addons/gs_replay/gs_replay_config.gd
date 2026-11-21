@@ -37,18 +37,18 @@ extends GSConfig
 
 
 func env_prefix() -> String:
-	return "DOT_REPLAY_"
+	return "GS_REPLAY_"
 
 
 func cli_prefix() -> String:
 	return "--replay-"
 
 
-## The addon name [GSAddonConfig] turns into the folder `dot_replay`.
-const CFG_ADDON := "dot-replay"
+## The addon name [GSAddonConfig] turns into the folder `gs_replay`.
+const CFG_ADDON := "gs-replay"
 
 
-## Applies [param file_name] from `cfg/addons/dot_replay/`, then the operator's `cfg/server/addons/dot_replay/`.
+## Applies [param file_name] from `cfg/addons/gs_replay/`, then the operator's `cfg/server/addons/gs_replay/`.
 ## A flat [param legacy_dir]/[param file_name] is still read (one WARN) while no new copy exists.
 ## Keys not starting `replay_` belong to the deployment and are skipped; secrets stay file-only.
 func apply_cfg_file(file_name: String = "replay.yml", legacy_dir: String = "res://cfg") -> GSResult:

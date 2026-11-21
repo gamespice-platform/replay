@@ -56,7 +56,7 @@ func record(id: Variant, time: float, xform: Transform3D, fov: float, cursor: Ve
 	return true
 
 
-## Whether the dot_sim extension provides [constant NATIVE_TRACK_CLASS]; asked once.
+## Whether the gs_sim extension provides [constant NATIVE_TRACK_CLASS]; asked once.
 static func native_track_available() -> bool:
 	if _native_known < 0:
 		_native_known = 1 if ClassDB.class_exists(NATIVE_TRACK_CLASS) else 0

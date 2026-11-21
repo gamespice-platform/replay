@@ -26,7 +26,7 @@ var players: Array = []
 var meta: Dictionary = {}
 
 ## Which recorder wrote it, so a bug report about a bad file names the version.
-var recorder: String = "dot-replay/1"
+var recorder: String = "gs-replay/1"
 
 
 static func make(

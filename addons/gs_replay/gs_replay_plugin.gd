@@ -4,13 +4,13 @@ extends EditorPlugin
 ## Editor entry point for GameSpice Replay. Registers inspector types only.
 ## No autoloads: a recorder, a playback tool and a ring clip must not share state.
 
-const _ICON := "res://addons/dot_replay/icon_placeholder.svg"
+const _ICON := "res://addons/gs_replay/icon_placeholder.svg"
 
 const _TYPES := [
 	[
 		"GSReplayPlayer",
 		"Node",
-		"res://addons/dot_replay/runtime/dot_replay_player.gd",
+		"res://addons/gs_replay/runtime/gs_replay_player.gd",
 	],
 ]
 

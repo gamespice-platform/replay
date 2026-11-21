@@ -1,8 +1,8 @@
-# Copy to cfg/addons/dot_replay/replay.yml.
-# dot-replay settings. Every key is optional; what is shown is the default.
-# Layers, weakest first: this file, cfg/server/addons/dot_replay/replay.yml, then the
-# player's own user://cfg/user/addons/dot_replay/replay.yml (solo or listen-host only).
-# Environment (DOT_REPLAY_*) and command line (--replay-*) win over all files.
+# Copy to cfg/addons/gs_replay/replay.yml.
+# gs-replay settings. Every key is optional; what is shown is the default.
+# Layers, weakest first: this file, cfg/server/addons/gs_replay/replay.yml, then the
+# player's own user://cfg/user/addons/gs_replay/replay.yml (solo or listen-host only).
+# Environment (GS_REPLAY_*) and command line (--replay-*) win over all files.
 
 # Seconds of recent match kept in memory for "save that" (0 turns it off, max 3600).
 replay_ring_seconds: 60.0

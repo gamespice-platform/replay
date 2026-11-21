@@ -459,10 +459,10 @@ func _test_pov() -> void:
 
 
 func _test_native_rows() -> void:
-	_section("dot-sim's native track keeps the script's rows to the bit")
+	_section("gs-sim's native track keeps the script's rows to the bit")
 	var native := GSKillViewRing.native_track_available()
 	if not native:
-		print("   (dot-sim's %s is not loaded: the script path only)" % GSKillViewRing.NATIVE_TRACK_CLASS)
+		print("   (gs-sim's %s is not loaded: the script path only)" % GSKillViewRing.NATIVE_TRACK_CLASS)
 	var rules := _rules(true)
 	rules.include_cursor = true
 	var was := GSKillViewRing.native_track

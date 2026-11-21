@@ -6,7 +6,7 @@ extends Node
 
 const SECTIONS := 1
 const CHECKS := 16
-const PATH := "user://dot_replay_net_selftest.dotreplay"
+const PATH := "user://gs_replay_net_selftest.dotreplay"
 const TICKS := 60
 const JOIN_AT := 30
 const OBSERVER := 2
@@ -32,7 +32,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	print("dot-replay net tap self-test")
+	print("gs-replay net tap self-test")
 	_test_real_stream()
 	print("\n1 sections, %d passed, %d failed" % [_passed, _failed])
 	if _finished != SECTIONS or _passed + _failed != CHECKS:
