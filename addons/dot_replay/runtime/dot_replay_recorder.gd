@@ -1,4 +1,4 @@
-class_name DotReplayRecorder
+class_name GSReplayRecorder
 extends RefCounted
 
 ## The front door: what the server decided, tick by tick, on named channels. Not a Node.
@@ -8,10 +8,10 @@ extends RefCounted
 const CHANNEL := "replay"
 
 ## A chunk was sealed. Emitted for the file and the ring alike.
-signal chunk_sealed(chunk: DotReplayChunk)
+signal chunk_sealed(chunk: GSReplayChunk)
 
 ## Writing to the file stopped: a size limit or an I/O error. The ring, if any, carries on.
-signal file_stopped(result: DotResult)
+signal file_stopped(result: GSResult)
 
 ## Ticks a chunk may span before it is sealed. This is the most a crash can lose.
 var chunk_ticks: int = 64
@@ -27,8 +27,8 @@ var keyframe_interval_ticks: int = 640
 ## from the first record — correct, and slow for a long match.
 var keyframe_fn: Callable = Callable()
 
-## A [code]DotReplayFormat.COMPRESSION_*[/code] mode.
-var compression: int = DotReplayFormat.COMPRESSION_ZSTD
+## A [code]GSReplayFormat.COMPRESSION_*[/code] mode.
+var compression: int = GSReplayFormat.COMPRESSION_ZSTD
 
 ## A single record larger than this is refused.
 var max_record_bytes: int = 1 << 20
@@ -37,14 +37,14 @@ var max_record_bytes: int = 1 << 20
 var max_file_bytes: int = 0
 
 ## Where sealed chunks are also kept in memory, for [method save_clip]. Optional.
-var ring: DotReplayRing = null
+var ring: GSReplayRing = null
 
-var header: DotReplayHeader = null
-var writer: DotReplayWriter = null
+var header: GSReplayHeader = null
+var writer: GSReplayWriter = null
 
 var _key: PackedByteArray = PackedByteArray()
 var _recording: bool = false
-var _pending: Array[DotReplayRecord] = []
+var _pending: Array[GSReplayRecord] = []
 var _pending_bytes: int = 0
 var _last_tick: int = -1
 var _last_keyframe_tick: int = -1
@@ -57,41 +57,41 @@ var _chunks: int = 0
 
 ## Takes the chunking, keyframe, compression and size settings from [param config],
 ## converting its seconds with [param tick_rate].
-func configure(config: DotReplayConfig, tick_rate: int) -> DotResult:
+func configure(config: GSReplayConfig, tick_rate: int) -> GSResult:
 	var valid := config.validate()
 	if not valid.ok:
 		return valid
 	chunk_ticks = maxi(1, int(round(config.chunk_seconds * tick_rate)))
 	chunk_bytes = config.chunk_kib << 10
 	keyframe_interval_ticks = int(round(config.keyframe_seconds * tick_rate))
-	compression = DotReplayFormat.compression_from_name(config.compression)
+	compression = GSReplayFormat.compression_from_name(config.compression)
 	max_record_bytes = config.max_record_kib << 10
 	max_file_bytes = config.max_file_mib << 20
 	if config.ring_seconds > 0.0:
 		if ring == null:
-			ring = DotReplayRing.new()
+			ring = GSReplayRing.new()
 		ring.window_ticks = int(ceil(config.ring_seconds * tick_rate))
 		ring.max_bytes = config.ring_max_mib << 20
 	else:
 		ring = null
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 ## Begins recording. [param path] empty records to the ring only, which is how a server
 ## keeps evidence without writing every match to disk.
-func start(p_header: DotReplayHeader, path: String = "", key: PackedByteArray = PackedByteArray()) -> DotResult:
+func start(p_header: GSReplayHeader, path: String = "", key: PackedByteArray = PackedByteArray()) -> GSResult:
 	if _recording:
-		return DotResult.fail(DotError.CODE_STATE, "Already recording.")
+		return GSResult.fail(GSError.CODE_STATE, "Already recording.")
 	var valid := p_header.validate()
 	if not valid.ok:
 		return valid
 	if path == "" and ring == null:
-		return DotResult.fail(DotError.CODE_INVALID, "Nothing to record to: give a path, a ring, or both.")
+		return GSResult.fail(GSError.CODE_INVALID, "Nothing to record to: give a path, a ring, or both.")
 	header = p_header
 	_key = key
 	writer = null
 	if path != "":
-		var w := DotReplayWriter.new()
+		var w := GSReplayWriter.new()
 		w.max_file_bytes = max_file_bytes
 		var opened := w.open(path, header, key)
 		if not opened.ok:
@@ -102,10 +102,10 @@ func start(p_header: DotReplayHeader, path: String = "", key: PackedByteArray = 
 	_pending_bytes = 0
 	_last_tick = -1
 	_last_keyframe_tick = -1
-	DotLog.info(CHANNEL, "recording", {
+	GSLog.info(CHANNEL, "recording", {
 		"game": header.game, "map": header.map, "path": path if path != "" else "(ring only)",
 	})
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 func is_recording() -> bool:
@@ -118,12 +118,12 @@ func is_recording_to_file() -> bool:
 
 ## Call at the top of every server tick, before anything of that tick is recorded. Seals a
 ## chunk that has run long and takes an automatic keyframe when one is due.
-func advance(tick: int) -> DotResult:
+func advance(tick: int) -> GSResult:
 	if not _recording:
-		return DotResult.fail(DotError.CODE_STATE, "Not recording.")
+		return GSResult.fail(GSError.CODE_STATE, "Not recording.")
 	if tick < _last_tick:
 		return _refuse_backwards(tick)
-	var sealed := DotResult.success(null)
+	var sealed := GSResult.success(null)
 	if not _pending.is_empty() and tick - _pending[0].tick >= chunk_ticks:
 		sealed = _seal()
 	if keyframe_fn.is_valid() and keyframe_interval_ticks > 0 \
@@ -136,39 +136,39 @@ func advance(tick: int) -> DotResult:
 
 
 ## Records opaque bytes. The cheapest path, and the one a netcode snapshot takes.
-func record(tick: int, channel: StringName, data: PackedByteArray) -> DotResult:
-	return _append(DotReplayRecord.new(tick, channel, data, 0))
+func record(tick: int, channel: StringName, data: PackedByteArray) -> GSResult:
+	return _append(GSReplayRecord.new(tick, channel, data, 0))
 
 
 ## Records a plain-data Variant — a Dictionary, an Array, numbers, strings, vectors.
-## Objects are refused: see [method DotReplayFormat.contains_object].
-func record_value(tick: int, channel: StringName, value: Variant) -> DotResult:
-	if DotReplayFormat.contains_object(value):
+## Objects are refused: see [method GSReplayFormat.contains_object].
+func record_value(tick: int, channel: StringName, value: Variant) -> GSResult:
+	if GSReplayFormat.contains_object(value):
 		_refused += 1
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"A replay record holds plain data only.",
 			"channel %s at tick %d carried an object" % [channel, tick]
 		)
-	return _append(DotReplayRecord.new(tick, channel, var_to_bytes(value), DotReplayRecord.FLAG_VARIANT))
+	return _append(GSReplayRecord.new(tick, channel, var_to_bytes(value), GSReplayRecord.FLAG_VARIANT))
 
 
 ## Records the whole state at [param tick] — the state after every record so far. Seals
 ## the current chunk and begins the next with it, which is what makes it seekable.
-func keyframe(tick: int, state: Variant) -> DotResult:
+func keyframe(tick: int, state: Variant) -> GSResult:
 	if not _recording:
-		return DotResult.fail(DotError.CODE_STATE, "Not recording.")
+		return GSResult.fail(GSError.CODE_STATE, "Not recording.")
 	if tick < _last_tick:
 		return _refuse_backwards(tick)
-	if DotReplayFormat.contains_object(state):
+	if GSReplayFormat.contains_object(state):
 		_refused += 1
-		return DotResult.fail(DotError.CODE_INVALID, "A keyframe holds plain data only.", "tick %d" % tick)
-	var sealed := DotResult.success(null)
+		return GSResult.fail(GSError.CODE_INVALID, "A keyframe holds plain data only.", "tick %d" % tick)
+	var sealed := GSResult.success(null)
 	if not _pending.is_empty():
 		sealed = _seal()
-	var r := DotReplayRecord.new(
-		tick, DotReplayFormat.KEYFRAME_CHANNEL, var_to_bytes(state),
-		DotReplayRecord.FLAG_VARIANT | DotReplayRecord.FLAG_KEYFRAME
+	var r := GSReplayRecord.new(
+		tick, GSReplayFormat.KEYFRAME_CHANNEL, var_to_bytes(state),
+		GSReplayRecord.FLAG_VARIANT | GSReplayRecord.FLAG_KEYFRAME
 	)
 	_pending.append(r)
 	_pending_bytes += r.data.size()
@@ -178,22 +178,22 @@ func keyframe(tick: int, state: Variant) -> DotResult:
 	return sealed
 
 
-func _append(r: DotReplayRecord) -> DotResult:
+func _append(r: GSReplayRecord) -> GSResult:
 	if not _recording:
-		return DotResult.fail(DotError.CODE_STATE, "Not recording.")
-	if r.channel == &"" or r.channel == DotReplayFormat.KEYFRAME_CHANNEL:
+		return GSResult.fail(GSError.CODE_STATE, "Not recording.")
+	if r.channel == &"" or r.channel == GSReplayFormat.KEYFRAME_CHANNEL:
 		_refused += 1
-		return DotResult.fail(DotError.CODE_INVALID, "That channel name is not available.", "'%s'" % r.channel)
+		return GSResult.fail(GSError.CODE_INVALID, "That channel name is not available.", "'%s'" % r.channel)
 	if r.tick < _last_tick:
 		return _refuse_backwards(r.tick)
 	if r.data.size() > max_record_bytes:
 		_refused += 1
-		return DotResult.fail(
-			DotError.CODE_QUOTA,
+		return GSResult.fail(
+			GSError.CODE_QUOTA,
 			"A replay record is larger than the limit.",
 			"channel %s at tick %d: %d bytes, limit %d" % [r.channel, r.tick, r.data.size(), max_record_bytes]
 		)
-	var sealed := DotResult.success(null)
+	var sealed := GSResult.success(null)
 	if not _pending.is_empty() and (
 		r.tick - _pending[0].tick >= chunk_ticks or _pending_bytes + r.data.size() > chunk_bytes
 	):
@@ -206,34 +206,34 @@ func _append(r: DotReplayRecord) -> DotResult:
 	return sealed
 
 
-func _refuse_backwards(tick: int) -> DotResult:
+func _refuse_backwards(tick: int) -> GSResult:
 	_refused += 1
 	# Refused rather than sorted in: every seek and every chunk boundary assumes the stream
 	# only moves forward, and a record that arrives late is a bug in the caller's tick.
-	return DotResult.fail(
-		DotError.CODE_INVALID,
+	return GSResult.fail(
+		GSError.CODE_INVALID,
 		"Replay ticks only move forward.",
 		"tick %d after %d" % [tick, _last_tick]
 	)
 
 
 ## Seals the pending records into a chunk and hands it to the file and the ring.
-func _seal() -> DotResult:
+func _seal() -> GSResult:
 	if _pending.is_empty():
-		return DotResult.success(null)
-	var chunk := DotReplayChunk.build(_pending, compression)
+		return GSResult.success(null)
+	var chunk := GSReplayChunk.build(_pending, compression)
 	_pending.clear()
 	_pending_bytes = 0
 	_chunks += 1
 
-	var result := DotResult.success(chunk)
+	var result := GSResult.success(chunk)
 	if writer != null and writer.is_open():
 		var wrote := writer.write_chunk(chunk)
 		if not wrote.ok:
 			# Finish what is there so the file on disk is complete and verifiable rather than
 			# a truncated one that reads like a crash.
 			var finished := writer.finish()
-			DotLog.warn(CHANNEL, "replay file stopped", {
+			GSLog.warn(CHANNEL, "replay file stopped", {
 				"path": writer.path, "why": str(wrote.error),
 				"finished": finished.ok,
 			})
@@ -247,15 +247,15 @@ func _seal() -> DotResult:
 
 ## Seals whatever is pending now. A host about to do something risky can call this so a
 ## crash loses nothing recorded so far.
-func flush() -> DotResult:
+func flush() -> GSResult:
 	return _seal()
 
 
 ## Stops recording, finishing the file. Returns the file's evidence Dictionary, or an
 ## empty one when recording only to the ring.
-func stop() -> DotResult:
+func stop() -> GSResult:
 	if not _recording:
-		return DotResult.fail(DotError.CODE_STATE, "Not recording.")
+		return GSResult.fail(GSError.CODE_STATE, "Not recording.")
 	var sealed := _seal()
 	_recording = false
 	var evidence := {}
@@ -264,22 +264,22 @@ func stop() -> DotResult:
 		if not done.ok:
 			return done
 		evidence = done.value
-	DotLog.info(CHANNEL, "recording stopped", {
+	GSLog.info(CHANNEL, "recording stopped", {
 		"records": _records, "keyframes": _keyframes, "chunks": _chunks, "refused": _refused,
 	})
-	if not sealed.ok and sealed.code() != DotError.CODE_QUOTA:
+	if not sealed.ok and sealed.code() != GSError.CODE_QUOTA:
 		return sealed
-	return DotResult.success(evidence)
+	return GSResult.success(evidence)
 
 
 ## Writes the last [param seconds] of the ring to [param path] as a complete replay.
 ## Seals what is pending first, so the clip runs up to the last thing recorded. The clip is
 ## keyed with the recording's key unless [param key] names another.
-func save_clip(path: String, seconds: float = 0.0, key: PackedByteArray = PackedByteArray()) -> DotResult:
+func save_clip(path: String, seconds: float = 0.0, key: PackedByteArray = PackedByteArray()) -> GSResult:
 	if ring == null:
-		return DotResult.fail(DotError.CODE_STATE, "This recorder has no ring to save from.")
+		return GSResult.fail(GSError.CODE_STATE, "This recorder has no ring to save from.")
 	if header == null:
-		return DotResult.fail(DotError.CODE_STATE, "Nothing has been recorded.")
+		return GSResult.fail(GSError.CODE_STATE, "Nothing has been recorded.")
 	_seal()
 	return ring.save(path, header, seconds, key if not key.is_empty() else _key)
 

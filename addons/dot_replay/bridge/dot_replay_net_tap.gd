@@ -1,13 +1,13 @@
-class_name DotReplayNetTap
+class_name GSReplayNetTap
 extends RefCounted
 
 ## Records the payloads a netcode manager sends through its [code]send_fn[/code], for one [member peer_id] (-1: all).
 ## One peer only: each peer's deltas decode against its own acks, so mixed streams decode as neither.
-## The payloads are deltas, so seeking needs the game's [member DotReplayRecorder.keyframe_fn].
+## The payloads are deltas, so seeking needs the game's [member GSReplayRecorder.keyframe_fn].
 
 const CHANNEL := "replay"
 
-var recorder: DotReplayRecorder = null
+var recorder: GSReplayRecorder = null
 
 ## [code]func() -> int[/code]. Empty reads [code]manager.clock.tick[/code] if there is one.
 var tick_fn: Callable = Callable()
@@ -25,16 +25,16 @@ var _recorded: int = 0
 var _bytes: int = 0
 
 
-func attach(manager: Object) -> DotResult:
+func attach(manager: Object) -> GSResult:
 	if manager == null or not ("send_fn" in manager):
-		return DotResult.fail(DotError.CODE_INVALID, "That has no send_fn to record.")
+		return GSResult.fail(GSError.CODE_INVALID, "That has no send_fn to record.")
 	detach()
 	_manager = manager
 	var current: Variant = manager.get("send_fn")
 	_original = current if current is Callable else Callable()
 	_wrapper = _on_send
 	manager.set("send_fn", _wrapper)
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 ## Puts the original send_fn back — but only if the manager still holds this tap's, so a
@@ -62,7 +62,7 @@ func _on_send(to_peer: int, payload: PackedByteArray, delivery: int) -> void:
 		_recorded += 1
 		_bytes += payload.size()
 	else:
-		DotLog.debug(CHANNEL, "net payload not recorded", {"why": str(r.error)})
+		GSLog.debug(CHANNEL, "net payload not recorded", {"why": str(r.error)})
 
 
 func _tick() -> int:

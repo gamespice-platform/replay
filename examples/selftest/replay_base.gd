@@ -48,7 +48,7 @@ class FakeManager extends RefCounted:
 
 
 ## Folds one record into a state. The "game" whose correctness the seek checks measure.
-static func _apply(state: Dictionary, r: DotReplayRecord) -> void:
+static func _apply(state: Dictionary, r: GSReplayRecord) -> void:
 	match String(r.channel):
 		"ops":
 			var op: Dictionary = r.value()
@@ -70,7 +70,7 @@ static func _apply(state: Dictionary, r: DotReplayRecord) -> void:
 ## Records [param ticks] ticks of a deterministic match. Returns the true state after every
 ## tick, and appends every record it made to [param made].
 func _record_match(
-	rec: DotReplayRecorder, ticks: int, made: Array, seed_value: int = 7
+	rec: GSReplayRecorder, ticks: int, made: Array, seed_value: int = 7
 ) -> Array[Dictionary]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
@@ -81,7 +81,7 @@ func _record_match(
 		rec.advance(t)
 		var n := rng.randi_range(0, 3)
 		for i in range(n):
-			var r: DotReplayRecord
+			var r: GSReplayRecord
 			if rng.randf() < 0.7:
 				var op := {"k": "k%d" % rng.randi_range(0, 5)}
 				if rng.randf() < 0.3:
@@ -89,28 +89,28 @@ func _record_match(
 				else:
 					op["add"] = rng.randi_range(1, 9)
 				rec.record_value(t, &"ops", op)
-				r = DotReplayRecord.new(t, &"ops", var_to_bytes(op), DotReplayRecord.FLAG_VARIANT)
+				r = GSReplayRecord.new(t, &"ops", var_to_bytes(op), GSReplayRecord.FLAG_VARIANT)
 			else:
 				var blob := PackedByteArray()
 				for j in range(rng.randi_range(0, 12)):
 					blob.append(rng.randi_range(0, 255))
 				rec.record(t, &"blob", blob)
-				r = DotReplayRecord.new(t, &"blob", blob, 0)
+				r = GSReplayRecord.new(t, &"blob", blob, 0)
 			_apply(live, r)
 			made.append(r)
 		truth.append(live.duplicate(true))
 	return truth
 
 
-func _new_recorder(chunk_ticks: int = 16, keyframe_every: int = 64) -> DotReplayRecorder:
-	var rec := DotReplayRecorder.new()
+func _new_recorder(chunk_ticks: int = 16, keyframe_every: int = 64) -> GSReplayRecorder:
+	var rec := GSReplayRecorder.new()
 	rec.chunk_ticks = chunk_ticks
 	rec.keyframe_interval_ticks = keyframe_every
 	return rec
 
 
-func _header(tick_rate: int = 64) -> DotReplayHeader:
-	return DotReplayHeader.make(
+func _header(tick_rate: int = 64) -> GSReplayHeader:
+	return GSReplayHeader.make(
 		"selftest", "dm_box", tick_rate,
 		[{"id": 1, "name": "one"}, {"id": 2, "name": "two"}],
 		{"server": "local", "round": 3}
@@ -131,8 +131,8 @@ func _write_match(
 	return [truth, made]
 
 
-func _player() -> DotReplayPlayer:
-	var p := DotReplayPlayer.new()
+func _player() -> GSReplayPlayer:
+	var p := GSReplayPlayer.new()
 	p.auto_process = false
 	# A clock that never moves unless a section moves it: step_ticks and seek are then the
 	# only things that advance playback, and no check depends on how fast this machine is.

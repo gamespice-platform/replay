@@ -1,7 +1,7 @@
-class_name DotKillcamFraming
+class_name GSKillcamFraming
 extends RefCounted
 ## Where a killcam's camera goes, given the killer's eye: the eye itself, or behind the killer on a
-## [DotCameraProbe] boom, looking down the aim and zoomed toward a distant victim so both read.
+## [GSCameraProbe] boom, looking down the aim and zoomed toward a distant victim so both read.
 
 ## Metres behind the killer's eye, at the base field of view.
 var back: float = 2.6
@@ -16,11 +16,11 @@ var victim_share: float = 0.15
 ## Distance looked down the aim when no victim is known, metres.
 var aim_distance: float = 12.0
 
-var probe: DotCameraProbe = null
+var probe: GSCameraProbe = null
 
 
 func _init(world: World3D = null, mask: int = 1) -> void:
-	probe = DotCameraProbe.new(world, mask)
+	probe = GSCameraProbe.new(world, mask)
 
 
 ## Forget the boom's eased length: the next frame is a cut.
@@ -28,10 +28,10 @@ func reset() -> void:
 	probe.reset()
 
 
-## {transform, fov} for [param mode] ([enum DotKillViewRules.Camera]) from the killer's [param eye]
+## {transform, fov} for [param mode] ([enum GSKillViewRules.Camera]) from the killer's [param eye]
 ## (-Z the aim) and [param base_fov]. [param target] is the victim's chest (Vector3) or null.
 func place(mode: int, eye: Transform3D, base_fov: float, target: Variant = null, delta: float = 0.0) -> Dictionary:
-	if mode != DotKillViewRules.Camera.BEHIND:
+	if mode != GSKillViewRules.Camera.BEHIND:
 		return {"transform": eye, "fov": base_fov}
 	var fwd := -eye.basis.z.normalized()
 	var reach := aim_distance

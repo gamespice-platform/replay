@@ -1,4 +1,4 @@
-class_name DotReplayHeader
+class_name GSReplayHeader
 extends RefCounted
 
 ## What a replay is of: game, map, tick rate, when, who. Written once before any record, so a
@@ -35,8 +35,8 @@ static func make(
 	p_tick_rate: int,
 	p_players: Array = [],
 	p_meta: Dictionary = {}
-) -> DotReplayHeader:
-	var h := DotReplayHeader.new()
+) -> GSReplayHeader:
+	var h := GSReplayHeader.new()
 	h.game = p_game
 	h.map = p_map
 	h.tick_rate = p_tick_rate
@@ -46,19 +46,19 @@ static func make(
 	return h
 
 
-func validate() -> DotResult:
+func validate() -> GSResult:
 	if tick_rate < 1 or tick_rate > 1000:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"A replay needs a tick rate between 1 and 1000.",
 			"tick_rate=%d" % tick_rate
 		)
-	if DotReplayFormat.contains_object(players) or DotReplayFormat.contains_object(meta):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+	if GSReplayFormat.contains_object(players) or GSReplayFormat.contains_object(meta):
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"A replay header holds plain data only: an object cannot be written to a file somebody else will open.",
 		)
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 func to_dictionary() -> Dictionary:
@@ -73,8 +73,8 @@ func to_dictionary() -> Dictionary:
 	}
 
 
-static func from_dictionary(d: Dictionary) -> DotResult:
-	var h := DotReplayHeader.new()
+static func from_dictionary(d: Dictionary) -> GSResult:
+	var h := GSReplayHeader.new()
 	h.game = str(d.get("game", ""))
 	h.map = str(d.get("map", ""))
 	h.tick_rate = int(d.get("tick_rate", 0))
@@ -91,16 +91,16 @@ func to_bytes() -> PackedByteArray:
 	return var_to_bytes(to_dictionary())
 
 
-static func from_bytes(bytes: PackedByteArray) -> DotResult:
+static func from_bytes(bytes: PackedByteArray) -> GSResult:
 	var decoded: Variant = bytes_to_var(bytes) if not bytes.is_empty() else null
 	if not (decoded is Dictionary):
-		return DotResult.fail(DotError.CODE_PARSE, "The replay header is not a dictionary.")
+		return GSResult.fail(GSError.CODE_PARSE, "The replay header is not a dictionary.")
 	return from_dictionary(decoded as Dictionary)
 
 
-func clone() -> DotReplayHeader:
-	var r: DotResult = from_dictionary(to_dictionary())
-	return r.value as DotReplayHeader if r.ok else DotReplayHeader.new()
+func clone() -> GSReplayHeader:
+	var r: GSResult = from_dictionary(to_dictionary())
+	return r.value as GSReplayHeader if r.ok else GSReplayHeader.new()
 
 
 func duration_text(ticks: int) -> String:

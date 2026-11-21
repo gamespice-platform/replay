@@ -1,8 +1,8 @@
-class_name DotKillViewClip
+class_name GSKillViewClip
 extends RefCounted
 
-## Reads a killer-view clip (from [method DotKillViewRing.clip_for]) as a [DotKillcamBuffer]
-## whose frames are {p, q, fov, cur, aux}, and turns a [DotKillcam] sample back into a view.
+## Reads a killer-view clip (from [method GSKillViewRing.clip_for]) as a [GSKillcamBuffer]
+## whose frames are {p, q, fov, cur, aux}, and turns a [GSKillcam] sample back into a view.
 
 ## Kill event kind in the buffer; the kill is at time 0.
 const KIND_KILL := &"kill"
@@ -12,16 +12,16 @@ const MAX_SAMPLES := 4096
 
 
 ## The buffer for [param clip], failing with CODE_PARSE for anything that is not a clip.
-static func to_buffer(clip: Dictionary) -> DotResult:
+static func to_buffer(clip: Dictionary) -> GSResult:
 	var version := int(clip.get("v", 0))
-	if (version != DotKillViewRing.VERSION and version != 2) or not (clip.get("f") is PackedFloat32Array):
-		return DotResult.fail(DotError.CODE_PARSE, "Not a kill view clip.")
+	if (version != GSKillViewRing.VERSION and version != 2) or not (clip.get("f") is PackedFloat32Array):
+		return GSResult.fail(GSError.CODE_PARSE, "Not a kill view clip.")
 	var flat: PackedFloat32Array = clip["f"]
-	var stride := DotKillViewRing.STRIDE if version == DotKillViewRing.VERSION else 19
+	var stride := GSKillViewRing.STRIDE if version == GSKillViewRing.VERSION else 19
 	var n := flat.size() / stride
 	if flat.size() % stride != 0 or n == 0 or n > MAX_SAMPLES:
-		return DotResult.fail(DotError.CODE_PARSE, "A kill view clip of the wrong size.", str(flat.size()))
-	var buffer := DotKillcamBuffer.new()
+		return GSResult.fail(GSError.CODE_PARSE, "A kill view clip of the wrong size.", str(flat.size()))
+	var buffer := GSKillcamBuffer.new()
 	buffer.window_seconds = 120.0
 	buffer.max_frames = MAX_SAMPLES
 	var use_cursor := bool(clip.get("cursor", false))
@@ -29,24 +29,24 @@ static func to_buffer(clip: Dictionary) -> DotResult:
 		var o := i * stride
 		for k in stride:
 			if not is_finite(flat[o + k]):
-				return DotResult.fail(DotError.CODE_PARSE, "A kill view clip holds a non-finite number.")
+				return GSResult.fail(GSError.CODE_PARSE, "A kill view clip holds a non-finite number.")
 		var q := Quaternion(flat[o + 4], flat[o + 5], flat[o + 6], flat[o + 7])
 		if q.length_squared() < 0.0001:
-			return DotResult.fail(DotError.CODE_PARSE, "A kill view clip holds a null rotation.")
+			return GSResult.fail(GSError.CODE_PARSE, "A kill view clip holds a null rotation.")
 		var cur := Vector2(flat[o + 9], flat[o + 10]) if use_cursor else Vector2(-1.0, -1.0)
 		var aux := flat.slice(o + 11, o + stride)
-		aux.resize(DotKillViewRing.AUX)
+		aux.resize(GSKillViewRing.AUX)
 		var accepted := buffer.push_frame(flat[o], {
 			"p": Vector3(flat[o + 1], flat[o + 2], flat[o + 3]), "q": q.normalized(),
 			"fov": flat[o + 8], "cur": cur, "aux": aux,
 		})
 		if not accepted:
-			return DotResult.fail(DotError.CODE_PARSE, "A kill view clip out of time order.")
+			return GSResult.fail(GSError.CODE_PARSE, "A kill view clip out of time order.")
 	buffer.note_event(0.0, KIND_KILL, {"killer": clip.get("killer"), "info": clip.get("info", {})})
-	return DotResult.success(buffer)
+	return GSResult.success(buffer)
 
 
-## The view at a [DotKillcam] sample: {transform, fov, cursor, has_cursor, aux}; cursor is in 0..1,
+## The view at a [GSKillcam] sample: {transform, fov, cursor, has_cursor, aux}; cursor is in 0..1,
 ## aux is the earlier sample's (a held weapon does not blend).
 static func view_at(sample: Dictionary) -> Dictionary:
 	var a: Dictionary = sample["a"]
@@ -68,7 +68,7 @@ static func view_at(sample: Dictionary) -> Dictionary:
 static func pack(clip: Dictionary, info: Dictionary, max_bytes: int = 15000) -> PackedByteArray:
 	var thin := clip.duplicate()
 	var flat: PackedFloat32Array = thin.get("f", PackedFloat32Array())
-	var stride := DotKillViewRing.STRIDE
+	var stride := GSKillViewRing.STRIDE
 	var bytes := var_to_bytes({"clip": thin, "info": info})
 	while bytes.size() > max_bytes and flat.size() / stride > 4:
 		var kept := PackedFloat32Array()

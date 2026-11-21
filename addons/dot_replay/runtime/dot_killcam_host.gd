@@ -1,7 +1,7 @@
-class_name DotKillcamHost
+class_name GSKillcamHost
 extends Node
 
-## The final killcam a game wraps around [DotKillcamBuffer] and [DotKillcam]: records frames and
+## The final killcam a game wraps around [GSKillcamBuffer] and [GSKillcam]: records frames and
 ## kills, replays the last kill at match end. Per-game differences are hooks (`state_fn`,
 ## `place_body_fn`, ...; see docs/killcam-host.md). Player ids are any one Variant kind.
 
@@ -14,7 +14,7 @@ var skip_actions: PackedStringArray = ["ui_cancel"]
 var skip_hint := "Jump to skip"
 
 ## Optional policy (`mp_killview_final`, `mp_killview_skip_grace`); null shows the final killcam always.
-var rules: DotKillViewRules = null
+var rules: GSKillViewRules = null
 
 ## The id that means "nobody" (0 for int ids, &"" for names).
 var no_id: Variant = 0
@@ -40,7 +40,7 @@ var state_fn: Callable = Callable()
 ## (player, feet, yaw, shown, pitch, speed, touched): poses one body. Fill `touched[player]` with what [member restore_body_fn] needs, once, before changing it.
 var place_body_fn: Callable = Callable()
 
-## Player node -> its body's pose as drawn (an opaque PackedFloat32Array, e.g. [code]DotHumanoidFigure.pose_record[/code]);
+## Player node -> its body's pose as drawn (an opaque PackedFloat32Array, e.g. [code]GSHumanoidFigure.pose_record[/code]);
 ## empty keeps none. Without it a replayed body shows whatever its clip last left.
 var pose_fn: Callable = Callable()
 
@@ -83,8 +83,8 @@ var weapon_icon_fn: Callable = Callable()
 ## Nodes hidden while the replay runs (the HUD, the view model): anything with `visible`.
 var hide_while_playing: Array = []
 
-## Where the camera sits ([enum DotKillViewRules.Camera]): the game's `mp_killview_camera`.
-var camera_mode_fn: Callable = func() -> int: return DotKillViewRules.Camera.EYE
+## Where the camera sits ([enum GSKillViewRules.Camera]): the game's `mp_killview_camera`.
+var camera_mode_fn: Callable = func() -> int: return GSKillViewRules.Camera.EYE
 
 ## (view: Dictionary) -> void, each frame of the replay and once with {} at its end: redraws the killer's
 ## screen from {camera, aux, fov}. aux is [method state_fn]'s row from index 5, as floats.
@@ -93,15 +93,15 @@ var present_fn: Callable = Callable()
 ## Layers the camera boom stops against (the map's).
 var world_mask: int = 1
 
-var buffer := DotKillcamBuffer.new()
+var buffer := GSKillcamBuffer.new()
 
 ## Every body's [member pose_fn] at [member pose_hz], on the same clock as [member buffer].
-var poses := DotKillcamBuffer.new()
-var killcam: DotKillcam = null
+var poses := GSKillcamBuffer.new()
+var killcam: GSKillcam = null
 var camera: Camera3D = null
 
 var _previous_camera: Camera3D = null
-var _framing: DotKillcamFraming = null
+var _framing: GSKillcamFraming = null
 var _base_fov: float = 75.0
 var _hidden: Dictionary = {}
 var _posed_at: float = -INF
@@ -120,7 +120,7 @@ var _reposing: bool = false
 
 
 func _ready() -> void:
-	killcam = DotKillcam.new()
+	killcam = GSKillcam.new()
 	killcam.name = "Killcam"
 	killcam.skip_actions = skip_actions
 	killcam.icon_provider = func(id: String) -> Texture2D:
@@ -144,13 +144,13 @@ func is_playing() -> bool:
 ## next replay (a second death inside the buffer's window) would pose bodies where they stood in
 ## the first one.
 func frame() -> void:
-	if not is_playing() or killcam.state == DotKillcam.State.WAITING:
+	if not is_playing() or killcam.state == GSKillcam.State.WAITING:
 		_record()
 	repose()
 
 
 ## Redraws the last [method pose] over what presentation drew this frame. Skipped while the replay posing the
-## bodies (this host's killcam, a kill view's [member DotKillViewClient.stage]) did so after it last frame: it
+## bodies (this host's killcam, a kill view's [member GSKillViewClient.stage]) did so after it last frame: it
 ## runs later this frame too and draws over the redraw, which at 32 bodies is the whole cost of a pose.
 func repose() -> void:
 	var at := Engine.get_process_frames()
@@ -196,7 +196,7 @@ func match_ended() -> bool:
 		"hint": skip_hint,
 	})
 	if not played.ok:
-		DotLog.debug(log_channel, "no final killcam", {"why": played.error.message})
+		GSLog.debug(log_channel, "no final killcam", {"why": played.error.message})
 		over.emit(false)
 		return false
 	return true
@@ -269,7 +269,7 @@ func _on_started(_kill: Dictionary) -> void:
 		if n is Object and is_instance_valid(n) and (n as Object).get(&"visible") != null:
 			_hidden[n] = bool((n as Object).get(&"visible"))
 			(n as Object).set(&"visible", false)
-	DotLog.info(log_channel, "final killcam", killcam.describe())
+	GSLog.info(log_channel, "final killcam", killcam.describe())
 
 
 func _apply(s: Dictionary) -> void:
@@ -282,7 +282,7 @@ func _apply(s: Dictionary) -> void:
 		camera.global_transform = v["transform"]
 		camera.fov = v["fov"]
 		if present_fn.is_valid():
-			present_fn.call({"camera": camera, "aux": posed.get("aux", PackedFloat32Array()), "fov": camera.fov, "behind": int(camera_mode_fn.call()) == DotKillViewRules.Camera.BEHIND})
+			present_fn.call({"camera": camera, "aux": posed.get("aux", PackedFloat32Array()), "fov": camera.fov, "behind": int(camera_mode_fn.call()) == GSKillViewRules.Camera.BEHIND})
 
 
 ## Poses every recorded body at [param time] on this client's own clock; see [method pose].
@@ -297,7 +297,7 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 	var a: Dictionary = s["a"]
 	var b: Dictionary = s["b"]
 	var alpha: float = s["alpha"]
-	var behind := int(camera_mode_fn.call()) == DotKillViewRules.Camera.BEHIND
+	var behind := int(camera_mode_fn.call()) == GSKillViewRules.Camera.BEHIND
 	var drawn := poses.sample(float(s["time"])) if apply_pose_fn.is_valid() and s.has("time") else {}
 	_again = [s, killer_id, victim_id]
 	if not _reposing and _reposed_at == Engine.get_process_frames():
@@ -350,7 +350,7 @@ func _apply_pose(p: Node, id: Variant, drawn: Dictionary) -> void:
 ## The camera for a [method pose] result: the killer's eye, or behind the killer looking at the victim.
 func place_camera(posed: Dictionary, base_fov: float, delta: float) -> Dictionary:
 	if _framing == null:
-		_framing = DotKillcamFraming.new(camera.get_world_3d() if is_inside_tree() else null, world_mask)
+		_framing = GSKillcamFraming.new(camera.get_world_3d() if is_inside_tree() else null, world_mask)
 	_framing.probe.collision_mask = world_mask
 	return _framing.place(int(camera_mode_fn.call()), posed["eye"], base_fov, posed.get("target"), delta)
 

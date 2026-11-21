@@ -1,6 +1,6 @@
 extends Node
 
-## DotKillcamBuffer and DotKillcam: the rewind picks the right frames, the kill is kept, the
+## GSKillcamBuffer and GSKillcam: the rewind picks the right frames, the kill is kept, the
 ## replay is slowed at the kill and bounded, a skip or a disabled killcam ends it at once.
 
 const SECTIONS := 8
@@ -14,7 +14,7 @@ var _sections_finished := 0
 
 
 func _ready() -> void:
-	DotLog.set_level(DotLog.Level.ERROR)
+	GSLog.set_level(GSLog.Level.ERROR)
 	_test_buffer()
 	_test_playback()
 	_test_budget_and_stall()
@@ -38,7 +38,7 @@ func _ready() -> void:
 
 
 ## Frames at 60 Hz from [param from] to [param to] seconds; frame["x"] is its own time.
-func _fill(buffer: DotKillcamBuffer, from: float, to: float) -> void:
+func _fill(buffer: GSKillcamBuffer, from: float, to: float) -> void:
 	var t := from
 	while t <= to + 0.0001:
 		var _ok := buffer.push_frame(t, {"x": t})
@@ -47,7 +47,7 @@ func _fill(buffer: DotKillcamBuffer, from: float, to: float) -> void:
 
 func _test_buffer() -> void:
 	_section("The buffer keeps a bounded window and rewinds to the right frames")
-	var b := DotKillcamBuffer.new()
+	var b := GSKillcamBuffer.new()
 	b.window_seconds = 5.0
 	_fill(b, 0.0, 20.0)
 	_check(b.oldest_time() <= 15.0 and b.oldest_time() > 15.0 - 2.0 * STEP,
@@ -94,8 +94,8 @@ func _test_buffer() -> void:
 	_done()
 
 
-func _killcam(b: DotKillcamBuffer) -> DotKillcam:
-	var k := DotKillcam.new()
+func _killcam(b: GSKillcamBuffer) -> GSKillcam:
+	var k := GSKillcam.new()
 	k.auto_process = false
 	k.show_banner = true
 	k.max_seconds = 7.0
@@ -105,7 +105,7 @@ func _killcam(b: DotKillcamBuffer) -> DotKillcam:
 
 func _test_playback() -> void:
 	_section("A kill at the end of the match plays from before it, slowed at it, past it")
-	var b := DotKillcamBuffer.new()
+	var b := GSKillcamBuffer.new()
 	_fill(b, 0.0, 10.0)
 	b.note_event(10.0, &"kill", {"killer": 3})
 	var k := _killcam(b)
@@ -115,18 +115,18 @@ func _test_playback() -> void:
 	k.finished.connect(func(skipped: bool) -> void: ended.append(skipped))
 
 	_check(k.play(b, b.last_event(&"kill"), {"killer": "Three", "weapon": "rifle"}).ok, "play is accepted")
-	_check(k.state == DotKillcam.State.WAITING and seen.is_empty(),
+	_check(k.state == GSKillcam.State.WAITING and seen.is_empty(),
 		"and waits: the second after the kill has not been drawn yet")
 	_check(k.banner != null and k.banner.visible and k.banner.killer_label.text == "Three"
 		and k.banner.title_label.text == "FINAL KILLCAM" and k.banner.detail_label.text.contains("rifle"),
 		"the banner is up with the title, the killer and the weapon")
 
 	var t := 10.0
-	while k.state == DotKillcam.State.WAITING and t < 13.0:
+	while k.state == GSKillcam.State.WAITING and t < 13.0:
 		t += STEP
 		var _ok := b.push_frame(t, {"x": t})
 		k.advance(STEP)
-	_check(k.state == DotKillcam.State.PLAYING, "it starts once the buffer covers a second past the kill")
+	_check(k.state == GSKillcam.State.PLAYING, "it starts once the buffer covers a second past the kill")
 	_check(absf(k.window().x - 6.5) < 0.001 and absf(k.window().y - 11.0) < 0.001,
 		"rewound 3.5 s before the kill, to 1 s after (%s)" % str(k.window()))
 	_check(not seen.is_empty() and absf(seen[0] - 6.5) < 0.001, "the first frame drawn is the rewind's start")
@@ -135,7 +135,7 @@ func _test_playback() -> void:
 		"which makes 4.5 s of match take 5.5 s (%.2f)" % k.wall_seconds(6.5, 11.0, 10.0))
 
 	var steps := 0
-	while k.state == DotKillcam.State.PLAYING and steps < 2000:
+	while k.state == GSKillcam.State.PLAYING and steps < 2000:
 		k.advance(STEP)
 		steps += 1
 	var ordered := true
@@ -150,34 +150,34 @@ func _test_playback() -> void:
 
 func _test_budget_and_stall() -> void:
 	_section("The budget shortens the rewind, never the kill; a stalled stream does not hold it")
-	var b := DotKillcamBuffer.new()
+	var b := GSKillcamBuffer.new()
 	_fill(b, 0.0, 12.0)
 	b.note_event(10.0, &"kill")
 	var k := _killcam(b)
 	k.max_seconds = 4.0
 	var _r := k.play(b, b.last_event(&"kill"))
-	_check(k.state == DotKillcam.State.PLAYING, "a buffer already past the kill plays at once")
+	_check(k.state == GSKillcam.State.PLAYING, "a buffer already past the kill plays at once")
 	_check(k.window().x > 6.5 and k.window().x < 10.0 and absf(k.window().y - 11.0) < 0.001,
 		"a 4 s budget starts later (%.2f) and still ends after the kill" % k.window().x)
 	_check(k.wall_seconds(k.window().x, k.window().y, 10.0) <= 4.0, "and fits the budget")
 	k.skip()
 
-	var stalled := DotKillcamBuffer.new()
+	var stalled := GSKillcamBuffer.new()
 	_fill(stalled, 0.0, 10.0)
 	stalled.note_event(10.0, &"kill")
 	var _r2 := k.play(stalled, stalled.last_event(&"kill"))
 	var waited := 0
-	while k.state == DotKillcam.State.WAITING and waited < 1000:
+	while k.state == GSKillcam.State.WAITING and waited < 1000:
 		k.advance(STEP)
 		waited += 1
-	_check(k.state == DotKillcam.State.PLAYING and waited * STEP < 1.6,
+	_check(k.state == GSKillcam.State.PLAYING and waited * STEP < 1.6,
 		"with no frames after the kill it plays what it has after %.2f s" % (waited * STEP))
 	_check(absf(k.window().y - 10.0) < 0.001, "and ends where the buffer ends")
 
 	var ended: Array = []
 	k.finished.connect(func(skipped: bool) -> void: ended.append(skipped))
 	var total := waited * STEP
-	while k.state != DotKillcam.State.IDLE and total < 30.0:
+	while k.state != GSKillcam.State.IDLE and total < 30.0:
 		k.advance(STEP)
 		total += STEP
 	_check(ended.size() == 1 and total <= k.max_seconds + STEP, "the whole thing stays inside max_seconds (%.2f)" % total)
@@ -187,7 +187,7 @@ func _test_budget_and_stall() -> void:
 
 func _test_skip_and_disabled() -> void:
 	_section("A skip ends it at once; a disabled killcam never starts")
-	var b := DotKillcamBuffer.new()
+	var b := GSKillcamBuffer.new()
 	_fill(b, 0.0, 12.0)
 	b.note_event(10.0, &"kill")
 	var k := _killcam(b)
@@ -202,10 +202,10 @@ func _test_skip_and_disabled() -> void:
 	press.action = &"ui_cancel"
 	press.pressed = true
 	k._unhandled_input(press)
-	_check(ended.is_empty() and k.state != DotKillcam.State.IDLE, "a skip key inside the grace second is ignored")
+	_check(ended.is_empty() and k.state != GSKillcam.State.IDLE, "a skip key inside the grace second is ignored")
 	k.advance(0.6)
 	k._unhandled_input(press)
-	_check(ended == [true] and k.state == DotKillcam.State.IDLE, "the skip action ends it, skipped")
+	_check(ended == [true] and k.state == GSKillcam.State.IDLE, "the skip action ends it, skipped")
 	_check(not k.banner.visible, "and takes the banner down")
 
 	var again := k.play(b, b.last_event(&"kill"))
@@ -218,12 +218,12 @@ func _test_skip_and_disabled() -> void:
 	k.max_seconds = 0.0
 	var off := k.play(b, b.last_event(&"kill"))
 	k.advance(1.0)
-	_check(not off.ok and off.error.code == DotError.CODE_STATE and not k.enabled(), "max_seconds 0 refuses to play")
-	_check(ended.is_empty() and drawn.is_empty() and k.state == DotKillcam.State.IDLE and not k.banner.visible,
+	_check(not off.ok and off.error.code == GSError.CODE_STATE and not k.enabled(), "max_seconds 0 refuses to play")
+	_check(ended.is_empty() and drawn.is_empty() and k.state == GSKillcam.State.IDLE and not k.banner.visible,
 		"and nothing is drawn, shown or finished")
 
 	k.max_seconds = 7.0
-	var early := DotKillcamBuffer.new()
+	var early := GSKillcamBuffer.new()
 	_fill(early, 11.0, 12.0)
 	_check(not k.play(early, {"time": 10.0}).ok, "a kill from before the buffer is refused")
 	_check(not k.play(b, {}).ok, "as is no kill at all")
@@ -233,7 +233,7 @@ func _test_skip_and_disabled() -> void:
 
 func _test_icon() -> void:
 	_section("A weapon icon sits beside the weapon name when a provider gives one")
-	var b := DotKillcamBuffer.new()
+	var b := GSKillcamBuffer.new()
 	_fill(b, 0.0, 10.0)
 	b.note_event(10.0, &"kill", {"killer": 3})
 	var kill := b.last_event(&"kill")
@@ -243,7 +243,7 @@ func _test_icon() -> void:
 	var _p := plain.play(b, kill, {"killer": "A", "weapon": "Rifle"})
 	_check(not plain.banner.icon_rect.visible and plain.banner.detail_label.text.contains("Rifle"),
 		"no provider: text only, as before")
-	var k := DotKillcam.new()
+	var k := GSKillcam.new()
 	k.auto_process = false
 	k.icon_provider = func(id: String) -> Texture2D:
 		asked.append(id)
@@ -265,7 +265,7 @@ class FakeBody extends Node3D:
 
 
 func _test_host() -> void:
-	_section("DotKillcamHost records through the game's hooks, replays the last kill and puts the bodies back")
+	_section("GSKillcamHost records through the game's hooks, replays the last kill and puts the bodies back")
 	var killer := FakeBody.new()
 	var victim := FakeBody.new()
 	add_child(killer)
@@ -273,7 +273,7 @@ func _test_host() -> void:
 	victim.position = Vector3(5.0, 0.0, 0.0)
 	var clock := [0.0]
 	var by_id := {&"k": killer, &"v": victim}
-	var h := DotKillcamHost.new()
+	var h := GSKillcamHost.new()
 	h.no_id = &""
 	h.players_fn = func() -> Array: return [killer, victim]
 	h.player_for_fn = func(id: StringName) -> Variant: return by_id.get(id)
@@ -289,7 +289,7 @@ func _test_host() -> void:
 		p.visible = saved[1]
 	h.now_fn = func() -> float: return clock[0]
 	h.seconds_fn = func() -> float: return 7.0
-	h.camera_mode_fn = func() -> int: return DotKillViewRules.Camera.EYE
+	h.camera_mode_fn = func() -> int: return GSKillViewRules.Camera.EYE
 	h.can_play_fn = func(d: Dictionary) -> bool: return d["killer"] != d["victim"]
 	h.pose_fn = func(_p: Node) -> PackedFloat32Array: return PackedFloat32Array([clock[0]])
 	var drawn := {}
@@ -341,7 +341,7 @@ func _test_host() -> void:
 
 
 func _test_pose_unchanged() -> void:
-	_section("DotKillcamHost keeps an unchanged body's last pose without reading it again")
+	_section("GSKillcamHost keeps an unchanged body's last pose without reading it again")
 	var near := FakeBody.new()
 	var far := FakeBody.new()
 	add_child(near)
@@ -349,7 +349,7 @@ func _test_pose_unchanged() -> void:
 	var clock := [0.0]
 	var frame := [0]
 	var reads := {near: 0, far: 0}
-	var h := DotKillcamHost.new()
+	var h := GSKillcamHost.new()
 	h.no_id = &""
 	h.players_fn = func() -> Array: return [near, far]
 	h.id_of_fn = func(p: Node) -> Variant: return &"n" if p == near else &"f"
@@ -398,7 +398,7 @@ func _test_pose_unchanged() -> void:
 
 
 func _test_repose() -> void:
-	_section("DotKillcamHost redraws the last pose over presentation, unless the replay draws after it")
+	_section("GSKillcamHost redraws the last pose over presentation, unless the replay draws after it")
 	var killer := FakeBody.new()
 	var victim := FakeBody.new()
 	add_child(killer)
@@ -406,7 +406,7 @@ func _test_repose() -> void:
 	var clock := [0.0]
 	var placed := [0]
 	var by_id := {&"k": killer, &"v": victim}
-	var h := DotKillcamHost.new()
+	var h := GSKillcamHost.new()
 	h.no_id = &""
 	h.players_fn = func() -> Array: return [killer, victim]
 	h.player_for_fn = func(id: StringName) -> Variant: return by_id.get(id)

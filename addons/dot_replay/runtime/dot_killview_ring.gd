@@ -1,4 +1,4 @@
-class_name DotKillViewRing
+class_name GSKillViewRing
 extends RefCounted
 
 ## Server side of the kill-cam: a small ring of recent view samples per entity (player or bot),
@@ -21,21 +21,21 @@ var max_entities: int = 256
 
 ## GameSpice Sim's class holding one entity's samples natively (rows bit-identical to [method _Track.record]),
 ## reached by name so this addon loads without the extension.
-const NATIVE_TRACK_CLASS := &"DotSimKillViewTrack"
+const NATIVE_TRACK_CLASS := &"GSSimKillViewTrack"
 
 ## Hold each new entity's samples in [constant NATIVE_TRACK_CLASS] when it is loaded; false keeps
 ## the script (the A/B baseline). The web never has it.
 static var native_track := true
 static var _native_known := -1
 
-var rules: DotKillViewRules = null
+var rules: GSKillViewRules = null
 
 var _tracks: Dictionary = {}
 var _pending: Array[Dictionary] = []
 
 
-func _init(p_rules: DotKillViewRules = null) -> void:
-	rules = p_rules if p_rules != null else DotKillViewRules.new()
+func _init(p_rules: GSKillViewRules = null) -> void:
+	rules = p_rules if p_rules != null else GSKillViewRules.new()
 
 
 ## Notes where [param id] looked at [param time]; [param cursor] is its crosshair in 0..1 screen
@@ -71,15 +71,15 @@ func _new_track(cap: int) -> Object:
 	return _Track.new(cap)
 
 
-## Remembers a death so [method collect] can send the clip once [member DotKillViewRules.post_seconds]
+## Remembers a death so [method collect] can send the clip once [member GSKillViewRules.post_seconds]
 ## have passed. Fails with CODE_STATE when off, a suicide, or the killer has no recorded view.
-func note_kill(killer: Variant, victim: Variant, time: float, info: Dictionary = {}) -> DotResult:
+func note_kill(killer: Variant, victim: Variant, time: float, info: Dictionary = {}) -> GSResult:
 	if not rules.enabled:
-		return DotResult.fail(DotError.CODE_STATE, "The kill view is off.")
+		return GSResult.fail(GSError.CODE_STATE, "The kill view is off.")
 	if (typeof(killer) == typeof(victim) and killer == victim) or not _tracks.has(killer):
-		return DotResult.fail(DotError.CODE_STATE, "No recorded view for the killer.", str(killer))
+		return GSResult.fail(GSError.CODE_STATE, "No recorded view for the killer.", str(killer))
 	_pending.append({"killer": killer, "victim": victim, "time": time, "info": info})
-	return DotResult.success()
+	return GSResult.success()
 
 
 ## The ready clips at [param now]: [{victim, killer, clip}]. A clip that cannot be cut is dropped.
@@ -94,17 +94,17 @@ func collect(now: float) -> Array[Dictionary]:
 		if res.ok:
 			out.append({"victim": p["victim"], "killer": p["killer"], "clip": res.value})
 		else:
-			DotLog.debug(CHANNEL, "kill clip dropped", {"killer": str(p["killer"]), "why": res.error.message})
+			GSLog.debug(CHANNEL, "kill clip dropped", {"killer": str(p["killer"]), "why": res.error.message})
 	_pending = keep
 	return out
 
 
 ## The wire form of [param killer]'s view around [param kill_time]: plain Variants (no objects),
-## times relative to the kill, ready for [method DotKillViewClip.to_buffer].
-func clip_for(killer: Variant, kill_time: float, info: Dictionary = {}) -> DotResult:
+## times relative to the kill, ready for [method GSKillViewClip.to_buffer].
+func clip_for(killer: Variant, kill_time: float, info: Dictionary = {}) -> GSResult:
 	var track: Object = _tracks.get(killer)
 	if track == null or track.samples() == 0:
-		return DotResult.fail(DotError.CODE_STATE, "No recorded view for the killer.", str(killer))
+		return GSResult.fail(GSError.CODE_STATE, "No recorded view for the killer.", str(killer))
 	var from := kill_time - rules.lead_seconds
 	var to := kill_time + rules.post_seconds
 	var flat := PackedFloat32Array()
@@ -123,8 +123,8 @@ func clip_for(killer: Variant, kill_time: float, info: Dictionary = {}) -> DotRe
 	if prev >= 0:
 		_append(flat, track, prev, kill_time)
 	if flat.is_empty():
-		return DotResult.fail(DotError.CODE_STATE, "The killer's view does not cover the kill.", str(killer))
-	return DotResult.success({
+		return GSResult.fail(GSError.CODE_STATE, "The killer's view does not cover the kill.", str(killer))
+	return GSResult.success({
 		"v": VERSION, "killer": killer, "cursor": rules.include_cursor, "f": flat, "info": info,
 	})
 

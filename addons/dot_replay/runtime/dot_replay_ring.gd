@@ -1,4 +1,4 @@
-class_name DotReplayRing
+class_name GSReplayRing
 extends RefCounted
 
 ## The last N seconds of a match in memory, for "save that". Kept back to the keyframe at or before
@@ -7,18 +7,18 @@ extends RefCounted
 
 const CHANNEL := "replay"
 
-## How much match to keep, in ticks. Set from seconds by [method DotReplayRecorder.configure].
+## How much match to keep, in ticks. Set from seconds by [method GSReplayRecorder.configure].
 var window_ticks: int = 3840
 
 ## The most memory the ring may hold, in stored (compressed) bytes.
 var max_bytes: int = 32 << 20
 
-var _chunks: Array[DotReplayChunk] = []
+var _chunks: Array[GSReplayChunk] = []
 var _bytes: int = 0
 var _dropped_for_bytes: int = 0
 
 
-func push(chunk: DotReplayChunk) -> void:
+func push(chunk: GSReplayChunk) -> void:
 	_chunks.append(chunk)
 	_bytes += chunk.frame_size()
 	_evict()
@@ -49,14 +49,14 @@ func _evict() -> void:
 		# Said once, then counted: a ring that has reached its ceiling stays there, and a
 		# line per chunk from then on is a line per second forever. describe_lines has the count.
 		if _dropped_for_bytes == 0:
-			DotLog.debug(CHANNEL, "ring reached its byte ceiling; the oldest chunks now go first", {
+			GSLog.debug(CHANNEL, "ring reached its byte ceiling; the oldest chunks now go first", {
 				"max_bytes": max_bytes, "window_ticks": window_ticks,
 			})
 		_dropped_for_bytes += 1
 
 
 func _drop_front() -> void:
-	var c: DotReplayChunk = _chunks.pop_front()
+	var c: GSReplayChunk = _chunks.pop_front()
 	_bytes -= c.frame_size()
 
 
@@ -89,12 +89,12 @@ func starts_with_keyframe() -> bool:
 ## writer's evidence. It starts at the keyframe at or before that moment, so it may run longer.
 func save(
 	path: String,
-	header: DotReplayHeader,
+	header: GSReplayHeader,
 	seconds: float = 0.0,
 	key: PackedByteArray = PackedByteArray()
-) -> DotResult:
+) -> GSResult:
 	if _chunks.is_empty():
-		return DotResult.fail(DotError.CODE_STATE, "The ring holds nothing to save yet.")
+		return GSResult.fail(GSError.CODE_STATE, "The ring holds nothing to save yet.")
 
 	var start := 0
 	if seconds > 0.0:
@@ -111,7 +111,7 @@ func save(
 		"to_tick": last_tick(),
 		"starts_at_keyframe": _chunks[start].starts_with_keyframe(),
 	}
-	var w := DotReplayWriter.new()
+	var w := GSReplayWriter.new()
 	var opened := w.open(path, clip_header, key)
 	if not opened.ok:
 		return opened
@@ -122,7 +122,7 @@ func save(
 			return wrote
 	var done := w.finish()
 	if done.ok:
-		DotLog.info(CHANNEL, "clip saved", {
+		GSLog.info(CHANNEL, "clip saved", {
 			"path": path, "ticks": [_chunks[start].first_tick, last_tick()],
 			"chunks": _chunks.size() - start,
 		})

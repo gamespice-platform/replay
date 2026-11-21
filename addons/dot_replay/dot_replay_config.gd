@@ -1,10 +1,10 @@
 @tool
-class_name DotReplayConfig
-extends DotConfig
+class_name GSReplayConfig
+extends GSConfig
 
 ## Where demos go, how they are cut up, and how much is kept. Layered like every config here;
 ## times are in seconds because the operator does not know the game's tick rate
-## ([method DotReplayRecorder.configure] converts).
+## ([method GSReplayRecorder.configure] converts).
 
 ## Where finished demos are written.
 @export var directory: String = "user://replays"
@@ -44,19 +44,19 @@ func cli_prefix() -> String:
 	return "--replay-"
 
 
-## The addon name [DotAddonConfig] turns into the folder `dot_replay`.
+## The addon name [GSAddonConfig] turns into the folder `dot_replay`.
 const CFG_ADDON := "dot-replay"
 
 
 ## Applies [param file_name] from `cfg/addons/dot_replay/`, then the operator's `cfg/server/addons/dot_replay/`.
 ## A flat [param legacy_dir]/[param file_name] is still read (one WARN) while no new copy exists.
 ## Keys not starting `replay_` belong to the deployment and are skipped; secrets stay file-only.
-func apply_cfg_file(file_name: String = "replay.yml", legacy_dir: String = "res://cfg") -> DotResult:
-	return DotAddonConfig.apply_file(CFG_ADDON, file_name, legacy_dir, _apply_cfg_values)
+func apply_cfg_file(file_name: String = "replay.yml", legacy_dir: String = "res://cfg") -> GSResult:
+	return GSAddonConfig.apply_file(CFG_ADDON, file_name, legacy_dir, _apply_cfg_values)
 
 
 ## The tunables a player may change, as the `user_cfg_files` entry a game appends
-## (`platform.user_cfg_files.append(DotReplayConfig.user_cfg_entry())`). Keys carry the `replay_`
+## (`platform.user_cfg_files.append(GSReplayConfig.user_cfg_entry())`). Keys carry the `replay_`
 ## prefix the file uses; ranges come from the exports so the editor and the config never disagree.
 static func user_cfg_entry() -> Dictionary:
 	var probe := new()
@@ -67,8 +67,8 @@ static func user_cfg_entry() -> Dictionary:
 			if info["name"] == prop and info["hint"] == PROPERTY_HINT_RANGE:
 				var parts := String(info["hint_string"]).split(",")
 				opts = {"min": float(parts[0]), "max": float(parts[1])}
-		schema.append(DotProfileSet.field("replay_" + prop, "float", probe.get(prop), opts))
-	schema.append(DotProfileSet.field(
+		schema.append(GSProfileSet.field("replay_" + prop, "float", probe.get(prop), opts))
+	schema.append(GSProfileSet.field(
 		"replay_compression", "string", probe.compression, {"enum": ["zstd", "deflate", "gzip", "fastlz", "none"]}
 	))
 	return {"addon": CFG_ADDON, "file": "replay.yml", "schema": schema, "label": "Replays"}
@@ -88,7 +88,7 @@ func _apply_cfg_values(values: Dictionary, path: String) -> PackedStringArray:
 
 
 ## [method apply_cfg_file], then the environment, the command line and validation.
-func load_cfg(file_name: String = "replay.yml", legacy_dir: String = "res://cfg") -> DotResult:
+func load_cfg(file_name: String = "replay.yml", legacy_dir: String = "res://cfg") -> GSResult:
 	unknown_keys = PackedStringArray()
 	var file_res := apply_cfg_file(file_name, legacy_dir)
 	if not file_res.ok:
@@ -98,40 +98,40 @@ func load_cfg(file_name: String = "replay.yml", legacy_dir: String = "res://cfg"
 	var valid := validate()
 	if not valid.ok:
 		return valid.wrap("Configuration is invalid.")
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
-func validate() -> DotResult:
-	if DotReplayFormat.compression_from_name(compression) < 0:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+func validate() -> GSResult:
+	if GSReplayFormat.compression_from_name(compression) < 0:
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Unknown replay compression.",
 			"%s: use zstd, deflate, gzip, fastlz or none" % compression
 		)
 	if chunk_seconds <= 0.0:
-		return DotResult.fail(DotError.CODE_INVALID, "A chunk must hold some time: it is the unit a crash loses.")
+		return GSResult.fail(GSError.CODE_INVALID, "A chunk must hold some time: it is the unit a crash loses.")
 	if keyframe_seconds > 0.0 and keyframe_seconds < chunk_seconds:
 		# A keyframe seals the chunk before it, so keyframing faster than chunking makes
 		# every chunk shorter than configured and every seek cheaper than it needs to be,
 		# at the cost of a full game state per keyframe. Refused rather than guessed at.
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Keyframes more often than chunks would make every chunk a keyframe.",
 			"keyframe_seconds=%s chunk_seconds=%s" % [keyframe_seconds, chunk_seconds]
 		)
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 ## A file name for a demo of [param header]: game, map and start time, and nothing a
 ## file system could object to.
-func path_for(header: DotReplayHeader) -> String:
+func path_for(header: GSReplayHeader) -> String:
 	var stamp := Time.get_datetime_string_from_unix_time(header.started_unix).replace(":", "").replace("-", "")
 	var name := "%s_%s_%s" % [_safe(header.game), _safe(header.map), stamp]
 	return directory.path_join(name + ".dreplay")
 
 
 static func _safe(s: String) -> String:
-	var out := DotPaths.slugify(s)
+	var out := GSPaths.slugify(s)
 	return out if out != "" else "unnamed"
 
 

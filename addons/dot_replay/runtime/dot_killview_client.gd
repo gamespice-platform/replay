@@ -1,4 +1,4 @@
-class_name DotKillViewClient
+class_name GSKillViewClient
 extends Node
 
 ## The client half of the kill view: plays the clip the server sent on this player's death from behind
@@ -13,7 +13,7 @@ signal over(skipped: bool)
 ## The victim skipped: ask the server to respawn.
 signal respawn_requested
 
-var kv: DotKillViewPlayer = null
+var kv: GSKillViewPlayer = null
 var camera: Camera3D = null
 
 ## The killer's crosshair overlay, drawn only at the eye.
@@ -27,11 +27,11 @@ var hide_fn: Callable = Callable()
 var present_fn: Callable = Callable()
 
 ## Optional final-killcam recorder that poses the bodies around the kill, duck-typed: `buffer`
-## ([DotKillcamBuffer] with "kill" events {killer, victim}), `pose_at(time, killer, victim) -> {target}`,
+## ([GSKillcamBuffer] with "kill" events {killer, victim}), `pose_at(time, killer, victim) -> {target}`,
 ## `restore_bodies()`, `world_mask`. Null leaves the world as it is.
 var stage: Object = null
 
-var _framing: DotKillcamFraming = null
+var _framing: GSKillcamFraming = null
 var _kill_at: float = NAN
 var _killer: int = 0
 var _victim: int = 0
@@ -42,8 +42,8 @@ var _aux := PackedFloat32Array()
 
 
 ## Builds the player, camera and crosshair under this node.
-func setup(rules: DotKillViewRules) -> void:
-	kv = DotKillViewPlayer.new(rules)
+func setup(rules: GSKillViewRules) -> void:
+	kv = GSKillViewPlayer.new(rules)
 	kv.name = "KillView"
 	add_child(kv)
 	kv.moment.connect(_on_moment)
@@ -83,13 +83,13 @@ func play(clip: Dictionary, info: Dictionary) -> bool:
 		_framing.reset()
 	var res := kv.play_clip(clip, info)
 	if not res.ok:
-		DotLog.debug(CHANNEL, "no kill view", {"why": res.error.message})
+		GSLog.debug(CHANNEL, "no kill view", {"why": res.error.message})
 		return false
 	_previous_camera = before if before != camera else null
 	if _previous_camera != null:
 		camera.cull_mask = _previous_camera.cull_mask
 	# Not current yet: until the first frame the camera sits at the origin, inside the level.
-	DotLog.info(CHANNEL, "kill view started", {"killer": info.get("killer", ""), "weapon": info.get("weapon", "")})
+	GSLog.info(CHANNEL, "kill view started", {"killer": info.get("killer", ""), "weapon": info.get("weapon", "")})
 	if hide_fn.is_valid():
 		for n: Variant in hide_fn.call():
 			if n is Object and is_instance_valid(n) and (n as Object).get(&"visible") != null:
@@ -102,7 +102,7 @@ func play(clip: Dictionary, info: Dictionary) -> bool:
 func _kill_time(killer: int, victim: int) -> float:
 	if stage == null or killer == 0:
 		return NAN
-	var buffer: DotKillcamBuffer = stage.get(&"buffer")
+	var buffer: GSKillcamBuffer = stage.get(&"buffer")
 	if buffer == null:
 		return NAN
 	var kills: Array[Dictionary] = buffer.events_between(-INF, INF, &"kill")
@@ -122,11 +122,11 @@ func _on_moment(seconds_from_kill: float) -> void:
 func _on_view(xform: Transform3D, fov: float, cursor: Vector2, has_cursor: bool) -> void:
 	if not camera.current:
 		camera.make_current()
-	var behind := kv.rules.camera == DotKillViewRules.Camera.BEHIND
+	var behind := kv.rules.camera == GSKillViewRules.Camera.BEHIND
 	if behind:
 		if _framing == null:
-			_framing = DotKillcamFraming.new(camera.get_world_3d(), int(stage.get(&"world_mask")) if stage != null else 1)
-		var v := _framing.place(DotKillViewRules.Camera.BEHIND, xform, fov, _posed.get("target"), get_process_delta_time())
+			_framing = GSKillcamFraming.new(camera.get_world_3d(), int(stage.get(&"world_mask")) if stage != null else 1)
+		var v := _framing.place(GSKillViewRules.Camera.BEHIND, xform, fov, _posed.get("target"), get_process_delta_time())
 		xform = v["transform"]
 		fov = v["fov"]
 	camera.global_transform = xform
@@ -139,7 +139,7 @@ func _on_view(xform: Transform3D, fov: float, cursor: Vector2, has_cursor: bool)
 
 
 func _on_finished(skipped: bool) -> void:
-	DotLog.info(CHANNEL, "kill view ended", {"skipped": skipped})
+	GSLog.info(CHANNEL, "kill view ended", {"skipped": skipped})
 	crosshair.visible = false
 	if present_fn.is_valid():
 		present_fn.call({})

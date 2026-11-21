@@ -1,4 +1,4 @@
-class_name DotKillViewRules
+class_name GSKillViewRules
 extends RefCounted
 
 ## The kill-cam policy: whether a victim is shown their killer's view, for how long, and whether
@@ -123,7 +123,7 @@ func bind_cvars(add: Callable, flags: int = 0) -> Array:
 	return made
 
 
-## Follows a server's replicated values (GameSpice Server's `DotClientLink`: `replicated_cvar(name,
+## Follows a server's replicated values (GameSpice Server's `GSClientLink`: `replicated_cvar(name,
 ## fallback)` and `replicated_cvar_changed(name, value)`). False when [param source] cannot.
 func follow_cvars(source: Object) -> bool:
 	if source == null or not is_instance_valid(source):
@@ -179,7 +179,7 @@ func set_cvar(cvar_name: String, value: String) -> bool:
 
 func _flag(text: String, apply: Callable) -> bool:
 	if text != "0" and text != "1":
-		DotLog.debug(CHANNEL, "a killview cvar refused a value", {"value": text})
+		GSLog.debug(CHANNEL, "a killview cvar refused a value", {"value": text})
 		return false
 	apply.call(text == "1")
 	changed.emit()
@@ -188,7 +188,7 @@ func _flag(text: String, apply: Callable) -> bool:
 
 func _number(text: String, lo: float, hi: float, apply: Callable) -> bool:
 	if not text.is_valid_float() or text.to_float() < lo or text.to_float() > hi:
-		DotLog.debug(CHANNEL, "a killview cvar refused a value", {"value": text})
+		GSLog.debug(CHANNEL, "a killview cvar refused a value", {"value": text})
 		return false
 	apply.call(text.to_float())
 	changed.emit()

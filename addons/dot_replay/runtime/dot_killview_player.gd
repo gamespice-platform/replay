@@ -1,7 +1,7 @@
-class_name DotKillViewPlayer
+class_name GSKillViewPlayer
 extends Node
 
-## Client side of the kill-cam: plays a killer-view clip through a [DotKillcam], slowed at the kill,
+## Client side of the kill-cam: plays a killer-view clip through a [GSKillcam], slowed at the kill,
 ## and tells the game where to put its camera and crosshair. Draws no camera; the game does.
 
 const CHANNEL := "replay.killview"
@@ -13,7 +13,7 @@ signal view(transform: Transform3D, fov: float, cursor: Vector2, has_cursor: boo
 ## the clip holds only the killer's eye, so the game poses the bodies it drew itself at this instant.
 signal moment(seconds_from_kill: float)
 
-## The killer's game-defined state at the replayed instant (see [constant DotKillViewRing.AUX]), just before [signal view].
+## The killer's game-defined state at the replayed instant (see [constant GSKillViewRing.AUX]), just before [signal view].
 signal state(aux: PackedFloat32Array)
 
 ## Over; [param skipped] when the victim (or a short clip) ended it early. The respawn flow resumes here.
@@ -22,7 +22,7 @@ signal finished(skipped: bool)
 ## The victim skipped: respawn now.
 signal respawn_requested
 
-var rules: DotKillViewRules = null
+var rules: GSKillViewRules = null
 
 ## Called on a skip, in addition to [signal respawn_requested]: the game's respawn request.
 var respawn_fn: Callable = Callable()
@@ -30,11 +30,11 @@ var respawn_fn: Callable = Callable()
 ## Advance in [method Node._process]; off for a test that calls [method advance].
 var auto_process: bool = true
 
-var killcam: DotKillcam = null
+var killcam: GSKillcam = null
 
 
-func _init(p_rules: DotKillViewRules = null) -> void:
-	rules = p_rules if p_rules != null else DotKillViewRules.new()
+func _init(p_rules: GSKillViewRules = null) -> void:
+	rules = p_rules if p_rules != null else GSKillViewRules.new()
 
 
 func is_active() -> bool:
@@ -42,14 +42,14 @@ func is_active() -> bool:
 
 
 ## Starts the replay of [param clip]. Fails with CODE_STATE when off or running, CODE_PARSE for a bad clip.
-func play_clip(clip: Dictionary, info: Dictionary = {}) -> DotResult:
+func play_clip(clip: Dictionary, info: Dictionary = {}) -> GSResult:
 	if not rules.enabled:
-		return DotResult.fail(DotError.CODE_STATE, "The kill view is off.")
-	var made := DotKillViewClip.to_buffer(clip)
+		return GSResult.fail(GSError.CODE_STATE, "The kill view is off.")
+	var made := GSKillViewClip.to_buffer(clip)
 	if not made.ok:
 		return made.wrap("The kill view clip is unusable.")
 	if killcam == null:
-		killcam = DotKillcam.new()
+		killcam = GSKillcam.new()
 		killcam.frame_drawn.connect(_on_frame)
 		killcam.finished.connect(_on_finished)
 		add_child(killcam)
@@ -66,8 +66,8 @@ func play_clip(clip: Dictionary, info: Dictionary = {}) -> DotResult:
 	shown["title"] = shown.get("title", "KILL VIEW")
 	if not rules.skip_allowed:
 		shown["hint"] = ""
-	var buffer: DotKillcamBuffer = made.value
-	return killcam.play(buffer, buffer.last_event(DotKillViewClip.KIND_KILL), shown)
+	var buffer: GSKillcamBuffer = made.value
+	return killcam.play(buffer, buffer.last_event(GSKillViewClip.KIND_KILL), shown)
 
 
 func advance(delta: float) -> void:
@@ -77,13 +77,13 @@ func advance(delta: float) -> void:
 
 func _on_frame(sample: Dictionary) -> void:
 	moment.emit(float(sample.get("time", 0.0)))
-	var v := DotKillViewClip.view_at(sample)
+	var v := GSKillViewClip.view_at(sample)
 	state.emit(v["aux"])
 	view.emit(v["transform"], v["fov"], v["cursor"], v["has_cursor"])
 
 
 func _on_finished(skipped: bool) -> void:
-	DotLog.debug(CHANNEL, "kill view over", {"skipped": skipped})
+	GSLog.debug(CHANNEL, "kill view over", {"skipped": skipped})
 	finished.emit(skipped)
 	if skipped:
 		respawn_requested.emit()

@@ -1,7 +1,7 @@
-class_name DotKillcam
+class_name GSKillcam
 extends Node
 
-## A killcam: replays a [DotKillcamBuffer] around one kill, slowed at the moment, skippable.
+## A killcam: replays a [GSKillcamBuffer] around one kill, slowed at the moment, skippable.
 ## Owns the clock, draws nothing: each frame emits [signal frame_drawn] with the buffer's sample.
 ## [method play] may precede the post-kill frames; it waits up to [member post_seconds] plus a margin.
 
@@ -12,7 +12,7 @@ enum State { IDLE, WAITING, PLAYING }
 ## Playback began; [param kill] is the buffer's event {time, kind, data}.
 signal started(kill: Dictionary)
 
-## One replayed instant: {time, a, b, alpha} from [method DotKillcamBuffer.sample], plus
+## One replayed instant: {time, a, b, alpha} from [method GSKillcamBuffer.sample], plus
 ## "kill_time" and "progress" (0 to 1).
 signal frame_drawn(sample: Dictionary)
 
@@ -46,11 +46,11 @@ signal finished(skipped: bool)
 ## Advance in [method _process]; off for a test that calls [method advance] itself.
 @export var auto_process: bool = true
 
-## Build and show a [DotKillcamBanner] when none is assigned.
+## Build and show a [GSKillcamBanner] when none is assigned.
 @export var show_banner: bool = true
 
 ## What is shown over the replay. Assign one of your own before [method play] to restyle it.
-var banner: DotKillcamBanner = null
+var banner: GSKillcamBanner = null
 
 ## Weapon id -> Texture2D or null, handed to the banner it builds; null keeps the text only.
 var icon_provider: Callable = Callable()
@@ -59,7 +59,7 @@ var icon_provider: Callable = Callable()
 ## that will not come while the banner covers the live scene.
 var wait_for_frames: bool = true
 
-var buffer: DotKillcamBuffer = null
+var buffer: GSKillcamBuffer = null
 var state: State = State.IDLE
 
 var _kill: Dictionary = {}
@@ -97,16 +97,16 @@ func is_active() -> bool:
 ## Starts the killcam for [param kill] (an event from [param p_buffer]); [param info] goes to the
 ## banner (title, killer, victim, weapon, hint). Fails with CODE_STATE when disabled, already
 ## running, or the buffer holds nothing from before the kill.
-func play(p_buffer: DotKillcamBuffer, kill: Dictionary, info: Dictionary = {}) -> DotResult:
+func play(p_buffer: GSKillcamBuffer, kill: Dictionary, info: Dictionary = {}) -> GSResult:
 	if not enabled():
-		return DotResult.fail(DotError.CODE_STATE, "The killcam is disabled (max_seconds 0).")
+		return GSResult.fail(GSError.CODE_STATE, "The killcam is disabled (max_seconds 0).")
 	if state != State.IDLE:
-		return DotResult.fail(DotError.CODE_STATE, "A killcam is already running.")
+		return GSResult.fail(GSError.CODE_STATE, "A killcam is already running.")
 	if p_buffer == null or kill.is_empty() or not kill.has("time"):
-		return DotResult.fail(DotError.CODE_STATE, "No kill to replay.")
+		return GSResult.fail(GSError.CODE_STATE, "No kill to replay.")
 	var kill_time := float(kill["time"])
 	if p_buffer.frame_count() == 0 or p_buffer.oldest_time() > kill_time:
-		return DotResult.fail(DotError.CODE_STATE, "The buffer holds nothing from before the kill.")
+		return GSResult.fail(GSError.CODE_STATE, "The buffer holds nothing from before the kill.")
 
 	buffer = p_buffer
 	_kill = kill
@@ -116,7 +116,7 @@ func play(p_buffer: DotKillcamBuffer, kill: Dictionary, info: Dictionary = {}) -
 	state = State.WAITING
 	if show_banner:
 		if banner == null:
-			banner = DotKillcamBanner.new()
+			banner = GSKillcamBanner.new()
 			banner.icon_provider = icon_provider
 			add_child(banner)
 		banner.skip_pressed.connect(request_skip, CONNECT_ONE_SHOT)
@@ -124,9 +124,9 @@ func play(p_buffer: DotKillcamBuffer, kill: Dictionary, info: Dictionary = {}) -
 		banner.present(info)
 		if banner.skip_button != null:
 			banner.skip_button.visible = skip_allowed
-	DotLog.debug(CHANNEL, "killcam waiting for the frames after the kill", {"kill_time": kill_time})
+	GSLog.debug(CHANNEL, "killcam waiting for the frames after the kill", {"kill_time": kill_time})
 	_try_start()
-	return DotResult.success()
+	return GSResult.success()
 
 
 ## Moves the replay on by [param delta] real seconds.
@@ -201,7 +201,7 @@ func _try_start() -> void:
 		return
 	_pos = _from
 	state = State.PLAYING
-	DotLog.debug(CHANNEL, "killcam playing", {
+	GSLog.debug(CHANNEL, "killcam playing", {
 		"from": _from, "to": _to, "kill_time": _kill_time,
 		"wall_seconds": wall_seconds(_from, _to, _kill_time),
 	})
@@ -224,7 +224,7 @@ func _finish(skipped: bool) -> void:
 		if banner.skip_pressed.is_connected(request_skip):
 			banner.skip_pressed.disconnect(request_skip)
 		banner.dismiss()
-	DotLog.debug(CHANNEL, "killcam over", {"skipped": skipped})
+	GSLog.debug(CHANNEL, "killcam over", {"skipped": skipped})
 	finished.emit(skipped)
 
 

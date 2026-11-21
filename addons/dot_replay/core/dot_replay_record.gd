@@ -1,4 +1,4 @@
-class_name DotReplayRecord
+class_name GSReplayRecord
 extends RefCounted
 
 ## One thing the server decided, at one tick, on one channel. The payload is opaque on purpose:
@@ -62,6 +62,6 @@ func describe() -> Dictionary:
 
 
 func _to_string() -> String:
-	return "DotReplayRecord(%d %s %dB%s)" % [
+	return "GSReplayRecord(%d %s %dB%s)" % [
 		tick, channel, data.size(), " keyframe" if is_keyframe() else ""
 	]

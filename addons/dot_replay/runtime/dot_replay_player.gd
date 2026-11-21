@@ -1,4 +1,4 @@
-class_name DotReplayPlayer
+class_name GSReplayPlayer
 extends Node
 
 ## Plays a replay back: records emitted in tick order, at a speed, with pause and seek. It applies
@@ -9,7 +9,7 @@ const CHANNEL := "replay"
 
 
 ## Apply this record.
-signal record_played(record: DotReplayRecord)
+signal record_played(record: GSReplayRecord)
 
 ## Discard the current state and take [param state] as the state at [param tick]. [param
 ## state] is null when playback starts from the first record with no keyframe before it.
@@ -27,7 +27,7 @@ signal finished()
 ## [code]func() -> float[/code], seconds. Empty uses the engine's monotonic clock.
 var now_fn: Callable = Callable()
 
-var file: DotReplayFile = null
+var file: GSReplayFile = null
 
 ## True while [method seek] is fast-forwarding. A game can skip effects while it is.
 var is_seeking: bool = false
@@ -41,7 +41,7 @@ var _pos: float = 0.0
 var _last_now: float = 0.0
 var _chunk_i: int = 0
 var _rec_i: int = 0
-var _records: Array[DotReplayRecord] = []
+var _records: Array[GSReplayRecord] = []
 var _channels: Dictionary = {}
 var _played: int = 0
 
@@ -52,9 +52,9 @@ func _process(_delta: float) -> void:
 
 
 ## Plays [param p_file]. Nothing is emitted until [method play].
-func load_file(p_file: DotReplayFile) -> DotResult:
+func load_file(p_file: GSReplayFile) -> GSResult:
 	if p_file == null or p_file.header == null:
-		return DotResult.fail(DotError.CODE_INVALID, "That is not an open replay.")
+		return GSResult.fail(GSError.CODE_INVALID, "That is not an open replay.")
 	file = p_file
 	_playing = false
 	_started = false
@@ -64,12 +64,12 @@ func load_file(p_file: DotReplayFile) -> DotResult:
 	_chunk_i = 0
 	_rec_i = 0
 	_played = 0
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 ## Opens and loads [param path].
-func open(path: String, key: PackedByteArray = PackedByteArray()) -> DotResult:
-	var f := DotReplayFile.new()
+func open(path: String, key: PackedByteArray = PackedByteArray()) -> GSResult:
+	var f := GSReplayFile.new()
 	var r := f.open(path, key)
 	if not r.ok:
 		return r
@@ -77,11 +77,11 @@ func open(path: String, key: PackedByteArray = PackedByteArray()) -> DotResult:
 
 
 
-func play() -> DotResult:
+func play() -> GSResult:
 	if file == null:
-		return DotResult.fail(DotError.CODE_STATE, "No replay loaded.")
+		return GSResult.fail(GSError.CODE_STATE, "No replay loaded.")
 	if file.chunk_count() == 0:
-		return DotResult.fail(DotError.CODE_STATE, "The replay has no records to play.")
+		return GSResult.fail(GSError.CODE_STATE, "The replay has no records to play.")
 	if not _started:
 		var begun := _begin()
 		if not begun.ok:
@@ -90,7 +90,7 @@ func play() -> DotResult:
 	_paused = false
 	_done = false
 	_last_now = _now()
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 func pause() -> void:
@@ -125,7 +125,7 @@ func is_finished() -> bool:
 ## already elapsed is accounted at the old speed first, so a change mid-play does not jump.
 func set_speed(value: float) -> bool:
 	if not is_finite(value) or value <= 0.0:
-		push_error("DotReplayPlayer.set_speed: speed must be a positive number, got %s; keeping %s" % [value, _speed])
+		push_error("GSReplayPlayer.set_speed: speed must be a positive number, got %s; keeping %s" % [value, _speed])
 		return false
 	if _playing and not _paused:
 		poll()
@@ -181,11 +181,11 @@ func step_ticks(ticks: int) -> int:
 
 
 ## Brings playback to [param tick]: the state after every record at or before it.
-func seek(tick: int) -> DotResult:
+func seek(tick: int) -> GSResult:
 	if file == null:
-		return DotResult.fail(DotError.CODE_STATE, "No replay loaded.")
+		return GSResult.fail(GSError.CODE_STATE, "No replay loaded.")
 	if file.chunk_count() == 0:
-		return DotResult.fail(DotError.CODE_STATE, "The replay has no records.")
+		return GSResult.fail(GSError.CODE_STATE, "The replay has no records.")
 	var target := clampi(tick, file.first_tick(), file.last_tick())
 
 	var k := file.keyframe_chunk_for(target)
@@ -208,12 +208,12 @@ func seek(tick: int) -> DotResult:
 
 	_pos = float(target)
 	_last_now = _now()
-	DotLog.debug(CHANNEL, "seeked", {"tick": target, "from_keyframe_chunk": k})
+	GSLog.debug(CHANNEL, "seeked", {"tick": target, "from_keyframe_chunk": k})
 	seeked.emit(target)
-	return DotResult.success(target)
+	return GSResult.success(target)
 
 
-func _begin() -> DotResult:
+func _begin() -> GSResult:
 	var loaded := _load_chunk(0)
 	if not loaded.ok:
 		return loaded
@@ -225,13 +225,13 @@ func _begin() -> DotResult:
 		state_reset.emit(file.first_tick(), null)
 		_rec_i = 0
 	_pos = float(file.first_tick())
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
-func _load_chunk(i: int) -> DotResult:
+func _load_chunk(i: int) -> GSResult:
 	var r := file.read_chunk(i)
 	if not r.ok:
-		DotLog.warn(CHANNEL, "playback stopped: a chunk could not be read", {"chunk": i, "why": str(r.error)})
+		GSLog.warn(CHANNEL, "playback stopped: a chunk could not be read", {"chunk": i, "why": str(r.error)})
 		_playing = false
 		return r
 	_records = r.value

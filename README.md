@@ -22,13 +22,13 @@ GameSpice Core is the only dependency.
 ## Recording
 
 ```gdscript
-var config := DotReplayConfig.new()
+var config := GSReplayConfig.new()
 config.load_layered()                                    # lets the settings below change without a rebuild
 
-var rec := DotReplayRecorder.new()
+var rec := GSReplayRecorder.new()
 rec.configure(config, 64)                                # 64 ticks per second
 rec.keyframe_fn = func(_tick: int) -> Variant: return game.capture_state()
-var header := DotReplayHeader.make("fc", "dm_box", 64, players)
+var header := GSReplayHeader.make("fc", "dm_box", 64, players)
 rec.start(header, "user://replays/match.dreplay")
 
 # every server tick, before anything of that tick is recorded:
@@ -49,10 +49,10 @@ A clip starts at the keyframe before the time you asked for, so it can be a litt
 
 ## Playing back
 
-`DotReplayPlayer` emits records and your game applies them:
+`GSReplayPlayer` emits records and your game applies them:
 
 ```gdscript
-var player := DotReplayPlayer.new()
+var player := GSReplayPlayer.new()
 add_child(player)
 player.state_reset.connect(func(tick, state): game.restore_state(state))   # after a seek
 player.record_played.connect(func(record): game.apply(record.channel, record.value()))
@@ -77,12 +77,12 @@ player.poll()
 
 Two small bridges record from other addons without depending on them:
 
-- `DotReplayEventTap` records every event a server's event bus fires, including ones a hook cancelled. Use `attach(bus)` and `detach()`.
-- `DotReplayNetTap` records the snapshot stream a netcode manager sends to one peer.
+- `GSReplayEventTap` records every event a server's event bus fires, including ones a hook cancelled. Use `attach(bus)` and `detach()`.
+- `GSReplayNetTap` records the snapshot stream a netcode manager sends to one peer.
 
 ## Settings
 
-`DotReplayConfig` is layered like every GameSpice config: inspector defaults, then a JSON file, then the environment, then the command line. Times are in seconds.
+`GSReplayConfig` is layered like every GameSpice config: inspector defaults, then a JSON file, then the environment, then the command line. Times are in seconds.
 
 ```bash
 GS_REPLAY_COMPRESSION=deflate <your server> --replay-ring-seconds=300

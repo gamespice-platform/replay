@@ -14,7 +14,7 @@ var _sections_finished := 0
 
 
 func _ready() -> void:
-	DotLog.set_level(DotLog.Level.ERROR)
+	GSLog.set_level(GSLog.Level.ERROR)
 	_test_off()
 	_test_record_and_deliver()
 	_test_playback()
@@ -40,14 +40,14 @@ func _ready() -> void:
 	get_tree().quit(1 if _failed > 0 else 0)
 
 
-func _rules(on: bool) -> DotKillViewRules:
-	var r := DotKillViewRules.new()
+func _rules(on: bool) -> GSKillViewRules:
+	var r := GSKillViewRules.new()
 	r.enabled = on
 	return r
 
 
 ## Two entities for [param seconds] at 60 Hz: the killer walks along x (x = time), the victim stands.
-func _simulate(ring: DotKillViewRing, killer: Variant, victim: Variant, seconds: float) -> void:
+func _simulate(ring: GSKillViewRing, killer: Variant, victim: Variant, seconds: float) -> void:
 	var t := 0.0
 	while t <= seconds + 0.0001:
 		var _a := ring.record(killer, t, Transform3D(Basis(), Vector3(t, 1.6, 0.0)), 75.0, Vector2(0.5 + 0.01 * t, 0.5))
@@ -57,13 +57,13 @@ func _simulate(ring: DotKillViewRing, killer: Variant, victim: Variant, seconds:
 
 func _test_off() -> void:
 	_section("With the kill view off nothing is recorded or played")
-	var ring := DotKillViewRing.new(_rules(false))
+	var ring := GSKillViewRing.new(_rules(false))
 	_simulate(ring, "bot_7", 1, 5.0)
 	_check(ring.entity_count() == 0 and ring.sample_count("bot_7") == 0, "no view of anybody is kept")
 	var res := ring.note_kill("bot_7", 1, 5.0)
-	_check(not res.ok and res.error.code == DotError.CODE_STATE, "a kill is refused with CODE_STATE")
+	_check(not res.ok and res.error.code == GSError.CODE_STATE, "a kill is refused with CODE_STATE")
 	_check(ring.collect(99.0).is_empty() and ring.pending_count() == 0, "and no clip is ever ready")
-	var player := DotKillViewPlayer.new(_rules(false))
+	var player := GSKillViewPlayer.new(_rules(false))
 	add_child(player)
 	_check(not player.play_clip({"v": 1}).ok and not player.is_active(), "and the player refuses to play")
 	player.queue_free()
@@ -73,7 +73,7 @@ func _test_off() -> void:
 func _test_record_and_deliver() -> void:
 	_section("A kill by a bot is cut into a clip the victim receives")
 	var rules := _rules(true)
-	var ring := DotKillViewRing.new(rules)
+	var ring := GSKillViewRing.new(rules)
 	_simulate(ring, "bot_7", 1, 10.6)
 	_check(ring.entity_count() == 2, "both entities have a view")
 	var cap := int(ceil(rules.history_seconds() * rules.record_hz)) + 2
@@ -87,41 +87,41 @@ func _test_record_and_deliver() -> void:
 	_check(ready.size() == 1 and ready[0]["victim"] == 1 and ring.pending_count() == 0, "then goes to the victim")
 	var wire: Dictionary = ready[0]["clip"]
 	var over_the_wire: Dictionary = bytes_to_var(var_to_bytes(wire))
-	var made := DotKillViewClip.to_buffer(over_the_wire)
+	var made := GSKillViewClip.to_buffer(over_the_wire)
 	_check(made.ok, "and survives the wire as plain data")
-	var buffer: DotKillcamBuffer = made.value
+	var buffer: GSKillcamBuffer = made.value
 	_check(buffer.oldest_time() <= -rules.lead_seconds and buffer.oldest_time() > -rules.lead_seconds - 0.2,
 		"it starts the lead-in before the kill (%.2f)" % buffer.oldest_time())
 	_check(buffer.newest_time() >= rules.post_seconds - 0.05, "and runs the post seconds past it (%.2f)" % buffer.newest_time())
 	_check(buffer.frame_count() <= 4 * rules.record_hz + 3, "and is small (%d frames)" % buffer.frame_count())
-	var at_kill := DotKillViewClip.view_at(buffer.sample(0.0))
+	var at_kill := GSKillViewClip.view_at(buffer.sample(0.0))
 	_check(absf((at_kill["transform"] as Transform3D).origin.x - 10.0) < 0.1, "the camera is the killer's at the kill")
 	_check(is_equal_approx(at_kill["fov"], 75.0) and at_kill["has_cursor"], "with their fov and crosshair")
-	_check(not DotKillViewClip.to_buffer({"v": 1, "f": PackedFloat32Array([1.0, 2.0])}).ok, "a malformed clip is refused")
+	_check(not GSKillViewClip.to_buffer({"v": 1, "f": PackedFloat32Array([1.0, 2.0])}).ok, "a malformed clip is refused")
 	var old := PackedFloat32Array([0.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0, 75.0, 0.5, 0.5, 9.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.0])
-	var read: DotResult = DotKillViewClip.to_buffer({"v": 2, "f": old})
-	var old_aux: PackedFloat32Array = (read.value as DotKillcamBuffer).sample(0.0)["a"]["aux"] if read.ok else PackedFloat32Array()
-	_check(old_aux.size() == DotKillViewRing.AUX and old_aux[0] == 9.0 and old_aux[7] == 4.0 and old_aux[11] == 0.0,
-		"a version 2 clip (8 aux) still reads, its aux padded to %d" % DotKillViewRing.AUX)
+	var read: GSResult = GSKillViewClip.to_buffer({"v": 2, "f": old})
+	var old_aux: PackedFloat32Array = (read.value as GSKillcamBuffer).sample(0.0)["a"]["aux"] if read.ok else PackedFloat32Array()
+	_check(old_aux.size() == GSKillViewRing.AUX and old_aux[0] == 9.0 and old_aux[7] == 4.0 and old_aux[11] == 0.0,
+		"a version 2 clip (8 aux) still reads, its aux padded to %d" % GSKillViewRing.AUX)
 	var nan_clip := wire.duplicate()
 	var bad: PackedFloat32Array = nan_clip["f"]
 	bad[1] = NAN
 	nan_clip["f"] = bad
-	_check(not DotKillViewClip.to_buffer(nan_clip).ok, "as is one holding NaN")
+	_check(not GSKillViewClip.to_buffer(nan_clip).ok, "as is one holding NaN")
 	ring.forget("bot_7")
 	_check(ring.entity_count() == 1, "a leaver's view is forgotten")
 	_done()
 
 
-func _clip(rules: DotKillViewRules) -> Dictionary:
-	var ring := DotKillViewRing.new(rules)
+func _clip(rules: GSKillViewRules) -> Dictionary:
+	var ring := GSKillViewRing.new(rules)
 	_simulate(ring, 2, 1, 11.0)
 	var _n := ring.note_kill(2, 1, 10.0)
 	return ring.collect(11.0)[0]["clip"]
 
 
-func _player(rules: DotKillViewRules) -> DotKillViewPlayer:
-	var p := DotKillViewPlayer.new(rules)
+func _player(rules: GSKillViewRules) -> GSKillViewPlayer:
+	var p := GSKillViewPlayer.new(rules)
 	p.auto_process = false
 	add_child(p)
 	return p
@@ -215,7 +215,7 @@ class _FakeCvar extends RefCounted:
 
 func _test_cvars() -> void:
 	_section("Every setting is a cvar and the cursor can be left out")
-	var rules := DotKillViewRules.new()
+	var rules := GSKillViewRules.new()
 	_check(not rules.enabled, "it is off by default")
 	_check(rules.set_cvar("mp_killview", "1") and rules.enabled, "mp_killview turns it on")
 	_check(rules.set_cvar("mp_killview_seconds", "8") and rules.seconds == 8.0, "mp_killview_seconds sets the length")
@@ -237,8 +237,8 @@ func _test_cvars() -> void:
 	rules.skip_allowed = true
 	var clip := _clip(rules)
 	_check(clip["cursor"] == false, "with the cursor off the clip says so")
-	var buffer: DotKillcamBuffer = DotKillViewClip.to_buffer(clip).value
-	_check(not DotKillViewClip.view_at(buffer.sample(0.0))["has_cursor"], "and the replay draws no crosshair")
+	var buffer: GSKillcamBuffer = GSKillViewClip.to_buffer(clip).value
+	_check(not GSKillViewClip.view_at(buffer.sample(0.0))["has_cursor"], "and the replay draws no crosshair")
 	var flat: PackedFloat32Array = clip["f"]
 	_check(flat[9] == 0.0 and flat[10] == 0.0, "because the server never sent it")
 	_done()
@@ -246,19 +246,19 @@ func _test_cvars() -> void:
 
 func _test_framing() -> void:
 	_section("The camera is the killer's eye by default, behind them is a cvar away, and the boom frames the victim")
-	var rules := DotKillViewRules.new()
-	_check(rules.camera == DotKillViewRules.Camera.EYE, "the killer's own eye is the default")
-	_check(rules.set_cvar("mp_killview_camera", "1") and rules.camera == DotKillViewRules.Camera.BEHIND, "mp_killview_camera 1 is behind the killer")
+	var rules := GSKillViewRules.new()
+	_check(rules.camera == GSKillViewRules.Camera.EYE, "the killer's own eye is the default")
+	_check(rules.set_cvar("mp_killview_camera", "1") and rules.camera == GSKillViewRules.Camera.BEHIND, "mp_killview_camera 1 is behind the killer")
 	_check(rules.final_killcam and rules.set_cvar("mp_killview_final", "0") and not rules.final_killcam,
 		"mp_killview_final turns the final killcam off, on by default")
 	_check(rules.skip_grace == 1.0 and rules.set_cvar("mp_killview_skip_grace", "0.5") and rules.skip_grace == 0.5
 		and not rules.set_cvar("mp_killview_skip_grace", "9"), "mp_killview_skip_grace is a bounded number")
-	var framing := DotKillcamFraming.new()
+	var framing := GSKillcamFraming.new()
 	var eye := Transform3D(Basis(Vector3.UP, 0.7), Vector3(3.0, 1.6, -2.0))
-	var at_eye := framing.place(DotKillViewRules.Camera.EYE, eye, 75.0)
+	var at_eye := framing.place(GSKillViewRules.Camera.EYE, eye, 75.0)
 	_check(at_eye["transform"] == eye and at_eye["fov"] == 75.0, "the eye mode is the eye itself")
 	var victim := eye.origin - eye.basis.z * 8.0
-	var near := framing.place(DotKillViewRules.Camera.BEHIND, eye, 75.0, victim)
+	var near := framing.place(GSKillViewRules.Camera.BEHIND, eye, 75.0, victim)
 	var cam: Transform3D = near["transform"]
 	var behind := (eye.origin - cam.origin).dot(-eye.basis.z)
 	_check(behind > 2.0 and cam.origin.distance_to(eye.origin) < 6.0, "behind mode is a few metres back of the eye (%.2f)" % behind)
@@ -266,14 +266,14 @@ func _test_framing() -> void:
 	_check((-cam.basis.z).dot(to_victim) > 0.999, "looking at the victim")
 	var to_killer := (eye.origin - cam.origin).normalized()
 	_check((-cam.basis.z).dot(to_killer) > cos(deg_to_rad(float(near["fov"]) * 0.5)), "with the killer in the frame")
-	var far := framing.place(DotKillViewRules.Camera.BEHIND, eye, 75.0, eye.origin - eye.basis.z * 40.0)
+	var far := framing.place(GSKillViewRules.Camera.BEHIND, eye, 75.0, eye.origin - eye.basis.z * 40.0)
 	_check(float(far["fov"]) < float(near["fov"]) and float(far["fov"]) >= framing.min_fov,
 		"a far victim narrows the lens (%.1f, near %.1f)" % [far["fov"], near["fov"]])
-	var back_of := framing.place(DotKillViewRules.Camera.BEHIND, eye, 75.0, eye.origin + eye.basis.z * 6.0)
+	var back_of := framing.place(GSKillViewRules.Camera.BEHIND, eye, 75.0, eye.origin + eye.basis.z * 6.0)
 	var bt: Transform3D = back_of["transform"]
 	_check((-bt.basis.z).dot(-eye.basis.z) > 0.9 and float(back_of["fov"]) == 75.0,
 		"a victim behind the killer: the camera keeps the killer's aim and does not turn onto its face")
-	var free := framing.place(DotKillViewRules.Camera.BEHIND, eye, 75.0)
+	var free := framing.place(GSKillViewRules.Camera.BEHIND, eye, 75.0)
 	_check(float(free["fov"]) == 75.0, "no victim known: no zoom")
 	var player := _player(_rules(true))
 	var moments: Array[float] = []
@@ -289,7 +289,7 @@ func _test_framing() -> void:
 func _test_server() -> void:
 	_section("The server wrapper samples every eye, holds the victim's respawn and lets a skip release it")
 	var rules := _rules(true)
-	var server := DotKillViewServer.new(rules)
+	var server := GSKillViewServer.new(rules)
 	server.tick_rate = 60
 	var t := [0.0]
 	server.eyes_fn = func() -> Array:
@@ -315,21 +315,21 @@ func _test_server() -> void:
 	_check(not server.skip(3, 661), "a player nobody holds cannot skip")
 	_check(server.skip(1, 661) and released == [1] and not server.is_held(1), "the victim's skip respawns them now")
 	_check(not server.skip(1, 662), "and only once")
-	var off := DotKillViewServer.new(_rules(false))
+	var off := GSKillViewServer.new(_rules(false))
 	off.eyes_fn = server.eyes_fn
 	off.record(1.0)
 	_check(off.ring.entity_count() == 0, "off records nothing")
-	var body := DotKillViewClip.pack(ready[0]["clip"], ready[0]["info"], 600)
-	var back := DotKillViewClip.unpack(body)
-	_check(body.size() <= 600 and bool(back["ok"]) and DotKillViewClip.to_buffer(back["clip"]).ok, "a clip packs into a capped event body and back (%d bytes)" % body.size())
-	_check(not bool(DotKillViewClip.unpack(var_to_bytes([1, 2, 3]))["ok"]), "a bad body is refused")
+	var body := GSKillViewClip.pack(ready[0]["clip"], ready[0]["info"], 600)
+	var back := GSKillViewClip.unpack(body)
+	_check(body.size() <= 600 and bool(back["ok"]) and GSKillViewClip.to_buffer(back["clip"]).ok, "a clip packs into a capped event body and back (%d bytes)" % body.size())
+	_check(not bool(GSKillViewClip.unpack(var_to_bytes([1, 2, 3]))["ok"]), "a bad body is refused")
 	_done()
 
 
 func _test_solo() -> void:
 	_section("The solo helper delivers only the local player's clip, and its skip respawns")
 	var rules := _rules(true)
-	var server := DotKillViewServer.new(rules)
+	var server := GSKillViewServer.new(rules)
 	server.tick_rate = 60
 	var tick := [0]
 	server.eyes_fn = func() -> Array:
@@ -341,7 +341,7 @@ func _test_solo() -> void:
 		waiting[victim] = until
 		return until
 	server.release_fn = func(victim: Variant) -> bool: return waiting.erase(victim)
-	var solo := DotKillViewSolo.new(server)
+	var solo := GSKillViewSolo.new(server)
 	var got := []
 	solo.local_id_fn = func() -> Variant: return 1
 	solo.tick_fn = func() -> int: return tick[0]
@@ -358,7 +358,7 @@ func _test_solo() -> void:
 	_check(got.size() == 1 and (got[0][1] as Dictionary).get("killer") == "Two", "with the killer's info")
 	_check(server.is_held(1) and server.is_held(2), "every victim's respawn is held")
 	_check(solo.skip() and not waiting.has(1), "the local skip respawns the local player")
-	var off := DotKillViewSolo.new(DotKillViewServer.new(_rules(false)))
+	var off := GSKillViewSolo.new(GSKillViewServer.new(_rules(false)))
 	off.deliver_fn = func(_c: Dictionary, _i: Dictionary) -> void: got.append(0)
 	off.tick(10)
 	_check(not off.enabled() and got.size() == 1, "off records and delivers nothing")
@@ -368,7 +368,7 @@ func _test_solo() -> void:
 func _test_client() -> void:
 	_section("The client plays a clip on its own camera, hides the HUD, and gives the screen back")
 	var rules := _rules(true)
-	rules.camera = DotKillViewRules.Camera.EYE
+	rules.camera = GSKillViewRules.Camera.EYE
 	var port := SubViewport.new()
 	add_child(port)
 	var previous := Camera3D.new()
@@ -376,7 +376,7 @@ func _test_client() -> void:
 	previous.make_current()
 	var hud := Control.new()
 	port.add_child(hud)
-	var view := DotKillViewClient.new()
+	var view := GSKillViewClient.new()
 	port.add_child(view)
 	view.setup(rules)
 	view.kv.auto_process = false
@@ -395,7 +395,7 @@ func _test_client() -> void:
 	view.kv.killcam.skip()
 	_check(stage.restores == 1, "and are put back exactly once, when the replay ends")
 	_check(ended == [true] and asked[0] == 1 and previous.current and hud.visible and not view.crosshair.visible, "a skip asks for the respawn and restores everything")
-	var quiet := DotKillViewClient.new()
+	var quiet := GSKillViewClient.new()
 	port.add_child(quiet)
 	quiet.setup(_rules(false))
 	_check(not quiet.play(_clip(rules), {}), "with the cvar off nothing plays")
@@ -406,7 +406,7 @@ func _test_client() -> void:
 func _test_pov() -> void:
 	_section("The victim sees the killer's own screen: eye, angles, fov and the state a presenter redraws it from")
 	var rules := _rules(true)
-	var ring := DotKillViewRing.new(rules)
+	var ring := GSKillViewRing.new(rules)
 	var basis := Basis.from_euler(Vector3(-0.2, 0.9, 0.0))
 	var t := 0.0
 	while t <= 11.0:
@@ -418,7 +418,7 @@ func _test_pov() -> void:
 	var clip: Dictionary = ring.collect(11.0)[0]["clip"]
 	var port := SubViewport.new()
 	add_child(port)
-	var view := DotKillViewClient.new()
+	var view := GSKillViewClient.new()
 	port.add_child(view)
 	view.setup(rules)
 	view.kv.auto_process = false
@@ -432,17 +432,17 @@ func _test_pov() -> void:
 	_check(view.camera.global_position.is_equal_approx(Vector3(4.0, 1.6, 1.0)), "the camera sits at the killer's eye, not behind")
 	_check(view.camera.global_basis.is_equal_approx(basis) and is_equal_approx(view.camera.fov, 60.0), "with the killer's angles and fov")
 	var aux_seen: PackedFloat32Array = last.get("aux", PackedFloat32Array())
-	_check(aux_seen.size() == DotKillViewRing.AUX and aux_seen[0] == 42.0 and aux_seen[4] == 17.0 and aux_seen[6] == 2.5, "the presenter gets the killer's recorded state")
+	_check(aux_seen.size() == GSKillViewRing.AUX and aux_seen[0] == 42.0 and aux_seen[4] == 17.0 and aux_seen[6] == 2.5, "the presenter gets the killer's recorded state")
 	_check(view.crosshair.visible, "the killer's crosshair is drawn")
 	view.kv.killcam.skip()
 	_check(seen[seen.size() - 1].is_empty(), "the presenter is told when the replay is over")
-	var early := DotKillViewRing.new(rules)
+	var early := GSKillViewRing.new(rules)
 	var u := 0.0
 	while u <= 10.0:
 		var _e := early.record(2, u, Transform3D(basis, Vector3(4.0, 1.6, 1.0)), 60.0)
 		u += STEP
 	var _k := early.note_kill(2, 1, 10.0)
-	var waiting := DotKillViewClient.new()
+	var waiting := GSKillViewClient.new()
 	port.add_child(waiting)
 	waiting.setup(rules)
 	waiting.kv.auto_process = false
@@ -451,32 +451,32 @@ func _test_pov() -> void:
 	anchor.make_current()
 	_check(waiting.play(early.collect(11.0)[0]["clip"], {}), "a clip with no frame after the kill starts")
 	_check(not waiting.camera.current or not waiting.camera.global_position.is_zero_approx(), "while it waits its camera is not left current at the origin")
-	var thin := DotKillViewClip.unpack(DotKillViewClip.pack(clip, {}, 6000))
-	_check(thin["ok"] and DotKillViewClip.to_buffer(thin["clip"]).ok, "a thinned clip still reads back")
-	_check(DotKillViewClip.to_buffer(ring.clip_for(1, 10.0).value).value.frames_between(-INF, INF).size() > 0 if false else true, "an entity without state records zeros")
+	var thin := GSKillViewClip.unpack(GSKillViewClip.pack(clip, {}, 6000))
+	_check(thin["ok"] and GSKillViewClip.to_buffer(thin["clip"]).ok, "a thinned clip still reads back")
+	_check(GSKillViewClip.to_buffer(ring.clip_for(1, 10.0).value).value.frames_between(-INF, INF).size() > 0 if false else true, "an entity without state records zeros")
 	port.queue_free()
 	_done()
 
 
 func _test_native_rows() -> void:
 	_section("dot-sim's native track keeps the script's rows to the bit")
-	var native := DotKillViewRing.native_track_available()
+	var native := GSKillViewRing.native_track_available()
 	if not native:
-		print("   (dot-sim's %s is not loaded: the script path only)" % DotKillViewRing.NATIVE_TRACK_CLASS)
+		print("   (dot-sim's %s is not loaded: the script path only)" % GSKillViewRing.NATIVE_TRACK_CLASS)
 	var rules := _rules(true)
 	rules.include_cursor = true
-	var was := DotKillViewRing.native_track
-	DotKillViewRing.native_track = false
-	var script_ring := DotKillViewRing.new(rules)
+	var was := GSKillViewRing.native_track
+	GSKillViewRing.native_track = false
+	var script_ring := GSKillViewRing.new(rules)
 	var script_out := _record_seeded(script_ring)
-	DotKillViewRing.native_track = true
-	var native_ring := DotKillViewRing.new(rules)
+	GSKillViewRing.native_track = true
+	var native_ring := GSKillViewRing.new(rules)
 	var native_out := _record_seeded(native_ring)
-	DotKillViewRing.native_track = was
+	GSKillViewRing.native_track = was
 	var kinds := {}
 	for id: Variant in native_ring._tracks:
 		kinds[native_ring._tracks[id].get_class() if native_ring._tracks[id].get_script() == null else "script"] = true
-	_check(kinds.has(String(DotKillViewRing.NATIVE_TRACK_CLASS)) == native and kinds.size() == 1,
+	_check(kinds.has(String(GSKillViewRing.NATIVE_TRACK_CLASS)) == native and kinds.size() == 1,
 			"the native class holds every track when loaded (%s)" % str(kinds.keys()))
 	_check(script_out == native_out, "both take and drop the same samples (%d taken)" % script_out.count(true))
 	var differ := 0
@@ -501,7 +501,7 @@ func _test_native_rows() -> void:
 
 ## Seeded views into [param ring]: turned, scaled, mirrored and skewed bases, odd fovs, aux of
 ## every length, some too soon; what each record answered.
-func _record_seeded(ring: DotKillViewRing) -> Array[bool]:
+func _record_seeded(ring: GSKillViewRing) -> Array[bool]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 20261114
 	var out: Array[bool] = []

@@ -1,30 +1,30 @@
 # The kill view
 
-When a player dies they see the replay of their killer's view (camera, fov and crosshair), then the respawn flow resumes. Reuses `DotKillcam` (clock, slow-motion, banner, skip) and `DotKillcamBuffer`; the new parts only record and carry the killer's view. It is a different thing from the killcam of what a client already drew: the victim never drew the killer's eyes, so the server records them.
+When a player dies they see the replay of their killer's view (camera, fov and crosshair), then the respawn flow resumes. Reuses `GSKillcam` (clock, slow-motion, banner, skip) and `GSKillcamBuffer`; the new parts only record and carry the killer's view. It is a different thing from the killcam of what a client already drew: the victim never drew the killer's eyes, so the server records them.
 
 ## The hook a game wires in
 
 Server (no autoloads; the game owns the objects):
 
-1. `var rules := DotKillViewRules.new()`, `rules.bind_cvars(module.add_cvar, DotConVar.FLAG_REPLICATED)` (cvars below). A client calls `rules.follow_cvars(client_link)`.
-2. `var kv := DotKillViewServer.new(rules)`, `kv.tick_rate = ...`, and assign `kv.eyes_fn`: `() -> [{id, transform, fov?, cursor?}]`, every living player's and bot's eye (`crosshair` 0..1 in the killer's viewport). With GameSpice Match, `kv.use_respawn_queue(func(): return match.respawns, func(id): return game.respawn(id))` holds and releases respawns; otherwise assign `hold_fn` and `release_fn`.
-3. Each tick: `kv.record(time)`, then `for c in kv.collect(time, tick): send(c["victim"], DotKillViewClip.pack(c["clip"], c["info"], max_bytes))`. Costs nothing while `mp_killview` is 0. A clip is 23 floats per sample (`DotKillViewRing.STRIDE`: time, position, rotation, fov, cursor, 12 aux), 2760 bytes a second at the default 30 Hz (`mp_killview_hz`, the quality knob, 5 to 120), about 11 KB for 4 s; `pack` thins it to fit the event body.
+1. `var rules := GSKillViewRules.new()`, `rules.bind_cvars(module.add_cvar, GSConVar.FLAG_REPLICATED)` (cvars below). A client calls `rules.follow_cvars(client_link)`.
+2. `var kv := GSKillViewServer.new(rules)`, `kv.tick_rate = ...`, and assign `kv.eyes_fn`: `() -> [{id, transform, fov?, cursor?}]`, every living player's and bot's eye (`crosshair` 0..1 in the killer's viewport). With GameSpice Match, `kv.use_respawn_queue(func(): return match.respawns, func(id): return game.respawn(id))` holds and releases respawns; otherwise assign `hold_fn` and `release_fn`.
+3. Each tick: `kv.record(time)`, then `for c in kv.collect(time, tick): send(c["victim"], GSKillViewClip.pack(c["clip"], c["info"], max_bytes))`. Costs nothing while `mp_killview` is 0. A clip is 23 floats per sample (`GSKillViewRing.STRIDE`: time, position, rotation, fov, cursor, 12 aux), 2760 bytes a second at the default 30 Hz (`mp_killview_hz`, the quality knob, 5 to 120), about 11 KB for 4 s; `pack` thins it to fit the event body.
 4. On a kill: `kv.note_kill(killer_id, victim_id, time, {"killer": name, "weapon": weapon})`. On the victim's respawn request: `kv.skip(victim_id, tick)`. On leave: `kv.forget(id)`.
 
 Client:
 
-1. `var view := DotKillViewClient.new()`, add it to the tree, `view.setup(rules)`; `view.hide_fn = func(): return [hud, view_model]`.
-2. On the event: `var got := DotKillViewClip.unpack(body)`, then `view.play(got["clip"], {"killer": name, "weapon": shown_name, "victim_id": me})`. Hide the normal death screen while `view.is_active()`.
+1. `var view := GSKillViewClient.new()`, add it to the tree, `view.setup(rules)`; `view.hide_fn = func(): return [hud, view_model]`.
+2. On the event: `var got := GSKillViewClip.unpack(body)`, then `view.play(got["clip"], {"killer": name, "weapon": shown_name, "victim_id": me})`. Hide the normal death screen while `view.is_active()`.
 3. `view.respawn_requested` fires only on a skip: send the respawn request there. `view.over(skipped)` resumes the flow.
-4. Optional `view.stage`: a final-killcam recorder with `buffer` (a `DotKillcamBuffer` holding `kill` events), `pose_at(time, killer, victim) -> {target}`, `restore_bodies()` and `world_mask`, so the bodies stand where they were and the behind camera frames the victim.
+4. Optional `view.stage`: a final-killcam recorder with `buffer` (a `GSKillcamBuffer` holding `kill` events), `pose_at(time, killer, victim) -> {target}`, `restore_bodies()` and `world_mask`, so the bodies stand where they were and the behind camera frames the victim.
 
-5. Optional `present_fn` (on the client and on `DotKillcamHost`): called every frame with `{camera, aux, fov, cursor, behind, crosshair}` and once with `{}` at the end, so a game can draw the killer's own screen (viewmodel, crosshair, ammo) over the replay camera. `aux` is up to twelve floats (`DotKillViewRing.AUX`) a game puts in `eyes_fn`'s `"aux"` (or after index 4 of the host's `state_fn` row), such as the held weapon, aim, ammo, spread and the last shot's recoil, so the presenter can kick its camera through the game's own view code; the clip carries them as version 3 (a version 2 clip of eight still reads, padded) and a held value is not blended between samples. The eye camera is the default because the victim should see the killer's screen as the killer did.
+5. Optional `present_fn` (on the client and on `GSKillcamHost`): called every frame with `{camera, aux, fov, cursor, behind, crosshair}` and once with `{}` at the end, so a game can draw the killer's own screen (viewmodel, crosshair, ammo) over the replay camera. `aux` is up to twelve floats (`GSKillViewRing.AUX`) a game puts in `eyes_fn`'s `"aux"` (or after index 4 of the host's `state_fn` row), such as the held weapon, aim, ammo, spread and the last shot's recoil, so the presenter can kick its camera through the game's own view code; the clip carries them as version 3 (a version 2 clip of eight still reads, padded) and a held value is not blended between samples. The eye camera is the default because the victim should see the killer's screen as the killer did.
 
-Standalone (offline) games have no KILLVIEW message: wrap the server in `DotKillViewSolo.new(server)`, set `local_id_fn` (the local player's id, or null), `tick_fn` and `deliver_fn(clip, info)` (calls the client's `play`), call `solo.tick(tick)` once per game tick, `solo.note_kill(killer, victim, info)` on a death and `solo.skip()` from `respawn_requested`. Only the local player's clip is delivered.
+Standalone (offline) games have no KILLVIEW message: wrap the server in `GSKillViewSolo.new(server)`, set `local_id_fn` (the local player's id, or null), `tick_fn` and `deliver_fn(clip, info)` (calls the client's `play`), call `solo.tick(tick)` once per game tick, `solo.note_kill(killer, victim, info)` on a death and `solo.skip()` from `respawn_requested`. Only the local player's clip is delivered.
 
-The lower pieces (`DotKillViewRing`, `DotKillViewPlayer`) stay public for a game that draws its own camera.
+The lower pieces (`GSKillViewRing`, `GSKillViewPlayer`) stay public for a game that draws its own camera.
 
-With GameSpice Sim's native library loaded (`DotSimKillViewTrack`, its `killview` module), each entity's ring builds and stores its rows natively, the same bits as the script `_Track` (`examples/killview_selftest`, "GameSpice Sim's native track keeps the script's rows to the bit"); `DotKillViewRing.native_track = false` keeps the script path. Without the library (the web build), the script path runs unchanged.
+With GameSpice Sim's native library loaded (`GSSimKillViewTrack`, its `killview` module), each entity's ring builds and stores its rows natively, the same bits as the script `_Track` (`examples/killview_selftest`, "GameSpice Sim's native track keeps the script's rows to the bit"); `GSKillViewRing.native_track = false` keeps the script path. Without the library (the web build), the script path runs unchanged.
 
 ## Cvars
 
@@ -40,7 +40,7 @@ With GameSpice Sim's native library loaded (`DotSimKillViewTrack`, its `killview
 | `mp_killview_slowmo` | 0.5 | speed around the kill |
 | `mp_killview_hz` | 30 | view samples per second per entity |
 | `mp_killview_camera` | 0 | 0 the killer's eye (their screen), 1 behind the killer |
-| `mp_killview_final` | 1 | the match's last kill is replayed before the summary (`DotKillcamHost.rules`) |
+| `mp_killview_final` | 1 | the match's last kill is replayed before the summary (`GSKillcamHost.rules`) |
 | `mp_killview_skip_grace` | 1 | seconds a replay ignores skip keys, so the click or jump that ended the match does not skip it |
 
 The ring holds `lead + post + 1` seconds per entity (about 40 samples), at most `max_entities` entities.

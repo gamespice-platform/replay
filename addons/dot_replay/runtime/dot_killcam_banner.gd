@@ -1,4 +1,4 @@
-class_name DotKillcamBanner
+class_name GSKillcamBanner
 extends CanvasLayer
 
 ## What a killcam shows over its replay: letterbox bars, a title, who killed whom and with what,

@@ -1,10 +1,10 @@
 # Design
 
-Why GameSpice Replay is shaped the way it is, and why the obvious alternative is wrong in each case. The file format itself is drawn in `DotReplayFormat`'s doc comment.
+Why GameSpice Replay is shaped the way it is, and why the obvious alternative is wrong in each case. The file format itself is drawn in `GSReplayFormat`'s doc comment.
 
 ## Why this exists
 
-Nothing else in the family replays a match. GameSpice Timer's `DotTimerReplay` records one player's run: position and view, quantised and delta-encoded for a single body against the clock. That is the right format for a record run and the wrong one for a match, which has many bodies, events and chat, and whose state only the game can describe. GameSpice Spectate's broadcast delay holds a few seconds of live poses in memory for a spectator and never writes anything. GameSpice Net's snapshots are deltas per peer, meaningful only to the one client that acknowledged them. GameSpice Moderation's `DotPunishment.evidence` is a free-form Dictionary meant to carry a demo's `evidence()`.
+Nothing else in the family replays a match. GameSpice Timer's `GSTimerReplay` records one player's run: position and view, quantised and delta-encoded for a single body against the clock. That is the right format for a record run and the wrong one for a match, which has many bodies, events and chat, and whose state only the game can describe. GameSpice Spectate's broadcast delay holds a few seconds of live poses in memory for a spectator and never writes anything. GameSpice Net's snapshots are deltas per peer, meaningful only to the one client that acknowledged them. GameSpice Moderation's `GSPunishment.evidence` is a free-form Dictionary meant to carry a demo's `evidence()`.
 
 This addon is the game-agnostic layer under all of those: a record is `(tick, channel, bytes)`, and the file format, integrity, seeking, clipping and playback timing are the same whatever the bytes mean.
 
@@ -20,7 +20,7 @@ So "the nearest keyframe at or before T" is a walk over the index and one decomp
 
 A hash per chunk detects an edited chunk. It does not detect one taken from another recording and put in the same position, which is still a chunk with a correct hash and a correct sequence number. Each chunk's hash covers the previous one, and the footer's covers the last hash, the index and itself, so the footer vouches for the whole file.
 
-**What that does not buy, stated in `DotReplayFormat` so nobody claims it.** An unkeyed SHA-256 chain is tamper-*evident* against an accident or a careless edit, not against somebody who recomputes it. The answers are a key (`FLAG_KEYED`, HMAC-SHA256 throughout) or the final hash from `evidence()` stored somewhere the file's holder cannot write; a punishment's evidence field is exactly that. Neither can tell a file cut short and stripped of its footer from a crash, which is the case the format exists to survive; the final hash stored elsewhere is what tells them apart.
+**What that does not buy, stated in `GSReplayFormat` so nobody claims it.** An unkeyed SHA-256 chain is tamper-*evident* against an accident or a careless edit, not against somebody who recomputes it. The answers are a key (`FLAG_KEYED`, HMAC-SHA256 throughout) or the final hash from `evidence()` stored somewhere the file's holder cannot write; a punishment's evidence field is exactly that. Neither can tell a file cut short and stripped of its footer from a crash, which is the case the format exists to survive; the final hash stored elsewhere is what tells them apart.
 
 ## Truncated is a success, edited is a failure
 
@@ -42,24 +42,24 @@ Every chunk boundary and every seek assumes it. A record that arrives for an ear
 
 - **The header is who was there at the start.** A streaming file cannot rewrite its header. Joins and leaves are records on a channel the game chooses.
 - **The recorder is not a Node, the player is.** A server drives the recorder from its own tick and a suite drives it with no tree. The player has per-frame work, and an inspector type is useful to somebody building a review tool.
-- **The web.** Every flushed chunk is followed by `DotWeb.sync_filesystem()` when the path is under `user://`, because a browser tab closed before the engine's own sync loses what was written, and "a crash loses one chunk" has to hold there too. Nothing here needs threads.
+- **The web.** Every flushed chunk is followed by `GSWeb.sync_filesystem()` when the path is under `user://`, because a browser tab closed before the engine's own sync loses what was written, and "a crash loses one chunk" has to hold there too. Nothing here needs threads.
 - **The magic is `DRPL`.** GameSpice Timer's run replays begin `DRP1`. The suite writes that magic into a demo and checks it is refused as not-a-demo.
 
 ## The net tap records one peer, and does not solve seeking
 
-GameSpice Net deltas each peer's snapshots against what that peer acknowledged and culls them by what it can see, so one peer's stream is a complete account of that peer's view and a mixture of two decodes as neither. Record a single observer peer. Those payloads are still deltas: a demo made from them seeks only as well as the full-state keyframes the game provides through `keyframe_fn`. Playing a recorded stream into a client `DotNetManager` is the game's code, and **this suite does not run it**: there is no GameSpice Net here.
+GameSpice Net deltas each peer's snapshots against what that peer acknowledged and culls them by what it can see, so one peer's stream is a complete account of that peer's view and a mixture of two decodes as neither. Record a single observer peer. Those payloads are still deltas: a demo made from them seeks only as well as the full-state keyframes the game provides through `keyframe_fn`. Playing a recorded stream into a client `GSNetManager` is the game's code, and **this suite does not run it**: there is no GameSpice Net here.
 
 ## Where it runs for real
 
-GameSpice Server Deploy's host (`TmcReplay`) keeps a ring of every server's event bus through `DotReplayEventTap`, with a roster keyframe, and saves it for an admin or a punishment. `DotReplayNetTap` is checked against a real GameSpice Net server by `examples/net_selftest` (record, replay into a fresh client, same count, order and payload hash, a client joining mid-stream); no game records through it yet.
+GameSpice Server Deploy's host (`TmcReplay`) keeps a ring of every server's event bus through `GSReplayEventTap`, with a roster keyframe, and saves it for an admin or a punishment. `GSReplayNetTap` is checked against a real GameSpice Net server by `examples/net_selftest` (record, replay into a fresh client, same count, order and payload hash, a client joining mid-stream); no game records through it yet.
 
 ## The killcam is a separate buffer
 
-A final killcam replays a client's last few seconds, so it needs decoded frames it can interpolate between and step through slowly, not the opaque, tick-stamped and compressed records `DotReplayRing` keeps for evidence. `DotKillcamBuffer` holds Dictionaries the game builds from what it already drew (no new traffic, no threads, nothing written), bounded by seconds, a frame count and an event count, and keeps one frame at or before the window's start so a rewind to the start can still interpolate. `DotKillcam` never knows what a frame contains: it emits `frame_drawn` with the two frames around the instant and an alpha, and the game places its bodies and camera. It waits up to `post_seconds + 0.5` for the second after the kill to arrive, then plays what it has, and shortens the rewind, never the kill, to fit `max_seconds`, so a server that adds the killcam to its end-of-match wait never waits on a client.
+A final killcam replays a client's last few seconds, so it needs decoded frames it can interpolate between and step through slowly, not the opaque, tick-stamped and compressed records `GSReplayRing` keeps for evidence. `GSKillcamBuffer` holds Dictionaries the game builds from what it already drew (no new traffic, no threads, nothing written), bounded by seconds, a frame count and an event count, and keeps one frame at or before the window's start so a rewind to the start can still interpolate. `GSKillcam` never knows what a frame contains: it emits `frame_drawn` with the two frames around the instant and an alpha, and the game places its bodies and camera. It waits up to `post_seconds + 0.5` for the second after the kill to arrive, then plays what it has, and shortens the rewind, never the kill, to fit `max_seconds`, so a server that adds the killcam to its end-of-match wait never waits on a client.
 
 ## Deliberately not here
 
-- **A replacement for `DotTimerReplay`.** A record run wants quantised movement for one body and a small file a browser can fetch before the map loads; a match demo wants opaque channels. Both stay.
+- **A replacement for `GSTimerReplay`.** A record run wants quantised movement for one body and a small file a browser can fetch before the map loads; a match demo wants opaque channels. Both stay.
 - **Decoding netcode.** No snapshot is ever parsed here.
 - **A broadcast delay.** That is GameSpice Spectate's, live and in memory. A ring is for saving, not for delaying a feed.
 - **Where a demo is uploaded or kept.** A punishment store, GameSpice Cloud or a website stores the file; `evidence()` is the Dictionary they want.
@@ -90,6 +90,6 @@ Little-endian throughout, because `FileAccess` and `StreamPeerBuffer` both defau
 
 The hashes are a chain rather than one per chunk: a hash per chunk detects an edited chunk but not a removed, duplicated or moved one, and cutting thirty seconds out of a demo is the tamper that matters for moderation evidence. Each hash covers the one before, so every chunk vouches for its prefix and the footer for the whole file.
 
-An unkeyed SHA-256 is tamper-evident against accident or a careless edit, not against someone who recomputes the chain. Record the final hash (`DotReplayWriter.evidence`) somewhere the file's holder cannot write, or record with a key (`FLAG_KEYED`, an HMAC chain). Neither detects a file cut short and stripped of its footer, which is indistinguishable from a crash; the final hash recorded elsewhere tells them apart.
+An unkeyed SHA-256 is tamper-evident against accident or a careless edit, not against someone who recomputes the chain. Record the final hash (`GSReplayWriter.evidence`) somewhere the file's holder cannot write, or record with a key (`FLAG_KEYED`, an HMAC chain). Neither detects a file cut short and stripped of its footer, which is indistinguishable from a crash; the final hash recorded elsewhere tells them apart.
 
 A crashed recording is a success with `truncated` set (damage at the end, incomplete); an edit is `CODE_INTEGRITY` (damage anywhere, complete). A crash cannot produce a whole chunk with a wrong hash.

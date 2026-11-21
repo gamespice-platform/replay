@@ -8,7 +8,7 @@ const _ICON := "res://addons/dot_replay/icon_placeholder.svg"
 
 const _TYPES := [
 	[
-		"DotReplayPlayer",
+		"GSReplayPlayer",
 		"Node",
 		"res://addons/dot_replay/runtime/dot_replay_player.gd",
 	],

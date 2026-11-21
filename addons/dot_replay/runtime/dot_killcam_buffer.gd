@@ -1,4 +1,4 @@
-class_name DotKillcamBuffer
+class_name GSKillcamBuffer
 extends RefCounted
 
 ## The last few seconds of what a client drew, in memory, for a killcam: timed frames and events.

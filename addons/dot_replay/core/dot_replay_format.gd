@@ -1,4 +1,4 @@
-class_name DotReplayFormat
+class_name GSReplayFormat
 extends RefCounted
 
 ## The file format's constants and the few pure functions every piece shares.
@@ -78,7 +78,7 @@ static func digest(key: PackedByteArray, parts: Array[PackedByteArray]) -> Packe
 	for p in parts:
 		joined.append_array(p)
 	if not key.is_empty():
-		return DotHash.hmac_sha256(key, joined)
+		return GSHash.hmac_sha256(key, joined)
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
 	# update() errors on an empty buffer; the joined parts are never empty in this

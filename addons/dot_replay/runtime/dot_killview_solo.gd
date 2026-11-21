@@ -1,8 +1,8 @@
-class_name DotKillViewSolo
+class_name GSKillViewSolo
 extends RefCounted
 
 ## The kill view for a standalone (offline) game, where the server half and the client are one process
-## and there is no KILLVIEW message: wraps a [DotKillViewServer], runs its per-tick record and delivery,
+## and there is no KILLVIEW message: wraps a [GSKillViewServer], runs its per-tick record and delivery,
 ## and hands the local player's clip straight to [member deliver_fn]. Other players' clips are dropped
 ## (nobody watches them). A game builds the server as it would for a dedicated one and gives it here.
 
@@ -15,11 +15,11 @@ var local_id_fn: Callable = Callable()
 ## () -> int: the game's current tick.
 var tick_fn: Callable = Callable()
 
-var server: DotKillViewServer = null
+var server: GSKillViewServer = null
 
 
-func _init(p_server: DotKillViewServer = null) -> void:
-	server = p_server if p_server != null else DotKillViewServer.new()
+func _init(p_server: GSKillViewServer = null) -> void:
+	server = p_server if p_server != null else GSKillViewServer.new()
 
 
 ## Whether the kill view is on; nothing records or delivers while it is not.
@@ -40,7 +40,7 @@ func tick(tick_number: int) -> void:
 
 
 ## A death, stamped with the current tick ([member tick_fn]) unless [param time] is given.
-func note_kill(killer: Variant, victim: Variant, info: Dictionary = {}, time: float = -1.0) -> DotResult:
+func note_kill(killer: Variant, victim: Variant, info: Dictionary = {}, time: float = -1.0) -> GSResult:
 	if time < 0.0:
 		time = float(tick_fn.call() if tick_fn.is_valid() else 0) / float(server.tick_rate)
 	return server.note_kill(killer, victim, time, info)

@@ -1,9 +1,9 @@
-class_name DotReplayWriter
+class_name GSReplayWriter
 extends RefCounted
 
 ## Streams chunks to a file, flushing each as written, and finishes it with an index. Disk is always
 ## a valid prefix; the missing index and footer tell a reader the recorder never finished.
-## Each flush is followed by [method DotWeb.sync_filesystem] so a closed browser tab loses one chunk at most.
+## Each flush is followed by [method GSWeb.sync_filesystem] so a closed browser tab loses one chunk at most.
 
 const CHANNEL := "replay"
 
@@ -29,9 +29,9 @@ var _web_sync: bool = false
 
 ## Creates [param p_path] and writes the header. [param key], if given, makes every hash
 ## in the file an HMAC; the reader then needs the same key.
-func open(p_path: String, header: DotReplayHeader, key: PackedByteArray = PackedByteArray()) -> DotResult:
+func open(p_path: String, header: GSReplayHeader, key: PackedByteArray = PackedByteArray()) -> GSResult:
 	if _file != null:
-		return DotResult.fail(DotError.CODE_STATE, "This writer already has a file open.", path)
+		return GSResult.fail(GSError.CODE_STATE, "This writer already has a file open.", path)
 	var valid := header.validate()
 	if not valid.ok:
 		return valid
@@ -40,21 +40,21 @@ func open(p_path: String, header: DotReplayHeader, key: PackedByteArray = Packed
 	if dir != "" and not DirAccess.dir_exists_absolute(dir):
 		var made := DirAccess.make_dir_recursive_absolute(dir)
 		if made != OK:
-			return DotResult.failure(DotError.from_engine(made, "creating %s" % dir))
+			return GSResult.failure(GSError.from_engine(made, "creating %s" % dir))
 
 	var f := FileAccess.open(p_path, FileAccess.WRITE)
 	if f == null:
-		return DotResult.failure(DotError.from_engine(FileAccess.get_open_error(), "opening %s" % p_path))
+		return GSResult.failure(GSError.from_engine(FileAccess.get_open_error(), "opening %s" % p_path))
 
 	path = p_path
 	_file = f
 	_key = key
-	_flags = DotReplayFormat.FLAG_KEYED if not key.is_empty() else 0
+	_flags = GSReplayFormat.FLAG_KEYED if not key.is_empty() else 0
 	_web_sync = p_path.begins_with("user://")
 
 	var header_bytes := header.to_bytes()
-	var pre := DotReplayFormat.preamble(DotReplayFormat.VERSION, _flags, header_bytes.size())
-	_header_hash = DotReplayFormat.digest(_key, [pre, header_bytes])
+	var pre := GSReplayFormat.preamble(GSReplayFormat.VERSION, _flags, header_bytes.size())
+	_header_hash = GSReplayFormat.digest(_key, [pre, header_bytes])
 	_prev_hash = _header_hash
 
 	var out := pre
@@ -63,8 +63,8 @@ func open(p_path: String, header: DotReplayHeader, key: PackedByteArray = Packed
 	var wrote := _store(out)
 	if not wrote.ok:
 		return wrote
-	DotLog.debug(CHANNEL, "replay file opened", {"path": path, "keyed": not key.is_empty()})
-	return DotResult.success(self)
+	GSLog.debug(CHANNEL, "replay file opened", {"path": path, "keyed": not key.is_empty()})
+	return GSResult.success(self)
 
 
 func is_open() -> bool:
@@ -72,14 +72,14 @@ func is_open() -> bool:
 
 
 ## Appends one sealed chunk and flushes it.
-func write_chunk(chunk: DotReplayChunk) -> DotResult:
+func write_chunk(chunk: GSReplayChunk) -> GSResult:
 	if not is_open():
-		return DotResult.fail(DotError.CODE_STATE, "No replay file is open.")
+		return GSResult.fail(GSError.CODE_STATE, "No replay file is open.")
 	if max_file_bytes > 0:
 		var after := _bytes_written + chunk.frame_size() + _tail_size(_entries.size() + 1)
 		if after > max_file_bytes:
-			return DotResult.fail(
-				DotError.CODE_QUOTA,
+			return GSResult.fail(
+				GSError.CODE_QUOTA,
 				"The replay reached its size limit; the file is finished rather than grown.",
 				"%s: %d bytes of %d" % [path, _bytes_written, max_file_bytes]
 			)
@@ -97,19 +97,19 @@ func write_chunk(chunk: DotReplayChunk) -> DotResult:
 	if _first_tick < 0:
 		_first_tick = chunk.first_tick
 	_last_tick = chunk.last_tick
-	return DotResult.success(offset)
+	return GSResult.success(offset)
 
 
 ## Writes the index and footer and closes the file. Idempotent.
-func finish() -> DotResult:
+func finish() -> GSResult:
 	if _finished:
-		return DotResult.success(evidence())
+		return GSResult.success(evidence())
 	if _file == null:
-		return DotResult.fail(DotError.CODE_STATE, "No replay file is open.")
+		return GSResult.fail(GSError.CODE_STATE, "No replay file is open.")
 
 	var index_offset := _bytes_written
 	var index := StreamPeerBuffer.new()
-	index.put_data(DotReplayFormat.ascii(DotReplayFormat.MAGIC_INDEX))
+	index.put_data(GSReplayFormat.ascii(GSReplayFormat.MAGIC_INDEX))
 	index.put_u32(_entries.size())
 	for e in _entries:
 		index.put_u64(int(e["offset"]))
@@ -120,27 +120,27 @@ func finish() -> DotResult:
 		index.put_data(e["hash"] as PackedByteArray)
 
 	var foot := StreamPeerBuffer.new()
-	foot.put_data(DotReplayFormat.ascii(DotReplayFormat.MAGIC_FOOTER))
+	foot.put_data(GSReplayFormat.ascii(GSReplayFormat.MAGIC_FOOTER))
 	foot.put_u64(index_offset)
 	foot.put_u32(_entries.size())
 	foot.put_u64(_last_tick)
-	_final_hash = DotReplayFormat.digest(_key, [_prev_hash, index.data_array, foot.data_array])
+	_final_hash = GSReplayFormat.digest(_key, [_prev_hash, index.data_array, foot.data_array])
 
 	var tail := index.data_array
 	tail.append_array(foot.data_array)
 	tail.append_array(_final_hash)
-	tail.append_array(DotReplayFormat.ascii(DotReplayFormat.MAGIC_END))
+	tail.append_array(GSReplayFormat.ascii(GSReplayFormat.MAGIC_END))
 	var wrote := _store(tail)
 	_file.close()
 	_file = null
 	_finished = true
 	if not wrote.ok:
 		return wrote
-	DotLog.info(CHANNEL, "replay finished", {
+	GSLog.info(CHANNEL, "replay finished", {
 		"path": path, "chunks": _entries.size(), "bytes": _bytes_written,
 		"ticks": [maxi(_first_tick, 0), _last_tick],
 	})
-	return DotResult.success(evidence())
+	return GSResult.success(evidence())
 
 
 ## Closes the file WITHOUT an index or footer — what a crash leaves behind. For tests and
@@ -157,7 +157,7 @@ func evidence() -> Dictionary:
 	return {
 		"replay": path,
 		"final_hash": _final_hash.hex_encode(),
-		"keyed": _flags & DotReplayFormat.FLAG_KEYED != 0,
+		"keyed": _flags & GSReplayFormat.FLAG_KEYED != 0,
 		"chunks": _entries.size(),
 		"first_tick": maxi(_first_tick, 0),
 		"last_tick": _last_tick,
@@ -174,17 +174,17 @@ func chunk_count() -> int:
 
 
 func _tail_size(entries: int) -> int:
-	return 8 + entries * DotReplayFormat.INDEX_ENTRY_SIZE + DotReplayFormat.FOOTER_SIZE
+	return 8 + entries * GSReplayFormat.INDEX_ENTRY_SIZE + GSReplayFormat.FOOTER_SIZE
 
 
-func _store(bytes: PackedByteArray) -> DotResult:
+func _store(bytes: PackedByteArray) -> GSResult:
 	if not _file.store_buffer(bytes):
-		return DotResult.fail(DotError.CODE_IO, "The replay file could not be written.", path)
+		return GSResult.fail(GSError.CODE_IO, "The replay file could not be written.", path)
 	_file.flush()
 	_bytes_written += bytes.size()
 	if _web_sync:
-		DotWeb.sync_filesystem()
-	return DotResult.success(bytes.size())
+		GSWeb.sync_filesystem()
+	return GSResult.success(bytes.size())
 
 
 func describe_lines() -> PackedStringArray:

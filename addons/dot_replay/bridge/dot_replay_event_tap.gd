@@ -1,4 +1,4 @@
-class_name DotReplayEventTap
+class_name GSReplayEventTap
 extends RefCounted
 
 ## Records every game event a bus fires, with its data and whether a hook cancelled it.
@@ -7,7 +7,7 @@ extends RefCounted
 
 const CHANNEL := "replay"
 
-var recorder: DotReplayRecorder = null
+var recorder: GSReplayRecorder = null
 
 ## [code]func() -> int[/code]: the server's current tick. Required — a bus knows nothing
 ## about ticks.
@@ -26,15 +26,15 @@ var _recorded: int = 0
 var _failed: int = 0
 
 
-func attach(bus: Object) -> DotResult:
+func attach(bus: Object) -> GSResult:
 	if bus == null or not bus.has_signal("event_fired"):
-		return DotResult.fail(DotError.CODE_INVALID, "That has no event_fired signal to record.")
+		return GSResult.fail(GSError.CODE_INVALID, "That has no event_fired signal to record.")
 	if not tick_fn.is_valid():
-		return DotResult.fail(DotError.CODE_INVALID, "An event tap needs tick_fn: the bus does not know the tick.")
+		return GSResult.fail(GSError.CODE_INVALID, "An event tap needs tick_fn: the bus does not know the tick.")
 	detach()
 	_bus = bus
 	bus.connect("event_fired", _on_event)
-	return DotResult.success(self)
+	return GSResult.success(self)
 
 
 func detach() -> void:
@@ -54,7 +54,7 @@ func _on_event(event: Object) -> void:
 		return
 	var entry := {
 		"name": event_name,
-		"data": DotReplayFormat.plain(event.get("data")),
+		"data": GSReplayFormat.plain(event.get("data")),
 	}
 	if cancelled:
 		entry["cancelled"] = true
@@ -64,7 +64,7 @@ func _on_event(event: Object) -> void:
 		_recorded += 1
 	else:
 		_failed += 1
-		DotLog.debug(CHANNEL, "event not recorded", {"event": event_name, "why": str(r.error)})
+		GSLog.debug(CHANNEL, "event not recorded", {"event": event_name, "why": str(r.error)})
 
 
 func describe_lines() -> PackedStringArray:
