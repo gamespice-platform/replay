@@ -303,6 +303,10 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 	if not _reposing and _reposed_at == Engine.get_process_frames():
 		_posed_after = _reposed_at
 	var out := {}
+	var drawn_a: Dictionary = drawn.get("a", {})
+	var drawn_b: Dictionary = drawn.get("b", {})
+	var drawn_alpha := float(drawn.get("alpha", 0.0))
+	var half := alpha >= 0.5
 	for id: Variant in b:
 		var p := _player(id)
 		if p == null:
@@ -312,7 +316,7 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 		var feet: Vector3 = (ra[0] as Vector3).lerp(rb[0], alpha)
 		var yaw := rad_to_deg(lerp_angle(deg_to_rad(ra[1]), deg_to_rad(rb[1]), alpha))
 		var pitch := lerpf(ra[2], rb[2], alpha)
-		var alive: bool = rb[3] if alpha >= 0.5 else ra[3]
+		var alive: bool = rb[3] if half else ra[3]
 		var speed := (ra[0] as Vector3).distance_to(rb[0]) * 60.0
 		if id == killer_id:
 			var eye := feet + Vector3(0.0, float(rb[4]), 0.0)
@@ -320,14 +324,14 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 			out["eye"] = Transform3D(Basis.from_euler(Vector3(deg_to_rad(pitch), deg_to_rad(yaw), 0.0)), eye)
 			_place(p, feet, yaw, behind, pitch, speed)
 			if behind:
-				_apply_pose(p, id, drawn)
+				_apply_pose(p, id, drawn_a, drawn_b, drawn_alpha)
 			_event(p, ra, rb, alpha, false)
 		else:
 			if id == victim_id:
 				out["target"] = feet + Vector3(0.0, 1.2, 0.0)
 			_place(p, feet, yaw, alive, pitch, speed)
 			if alive:
-				_apply_pose(p, id, drawn)
+				_apply_pose(p, id, drawn_a, drawn_b, drawn_alpha)
 			_event(p, ra, rb, alpha, id == victim_id)
 	return out
 
@@ -337,14 +341,14 @@ func _event(p: Node, ra: Array, rb: Array, alpha: float, is_victim: bool) -> voi
 		event_fn.call(p, ra, rb, alpha, is_victim)
 
 
-func _apply_pose(p: Node, id: Variant, drawn: Dictionary) -> void:
-	if drawn.is_empty():
+func _apply_pose(p: Node, id: Variant, drawn_a: Dictionary, drawn_b: Dictionary, drawn_alpha: float) -> void:
+	if drawn_a.is_empty() and drawn_b.is_empty():
 		return
-	var pa: Variant = (drawn["a"] as Dictionary).get(id)
-	var pb: Variant = (drawn["b"] as Dictionary).get(id)
+	var pa: Variant = drawn_a.get(id)
+	var pb: Variant = drawn_b.get(id)
 	if pa == null and pb == null:
 		return
-	apply_pose_fn.call(p, pb if pa == null else pa, pa if pb == null else pb, float(drawn["alpha"]))
+	apply_pose_fn.call(p, pb if pa == null else pa, pa if pb == null else pb, drawn_alpha)
 
 
 ## The camera for a [method pose] result: the killer's eye, or behind the killer looking at the victim.
