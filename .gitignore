@@ -22,3 +22,6 @@ Thumbs.db
 # Only examples/net_selftest needs gs-net (the one check that runs the net tap against it):
 #   ln -s ../../gs-net/addons/gs_net addons/gs_net
 /addons/gs_net
+
+# Sibling addons linked for local suites (absolute links must never be tracked; CI resolves them from addons.lock):
+/addons/gs_save
