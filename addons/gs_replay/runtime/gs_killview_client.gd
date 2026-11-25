@@ -79,6 +79,9 @@ func play(clip: Dictionary, info: Dictionary) -> bool:
 	_victim = int(info.get("victim_id", 0))
 	_kill_at = _kill_time(_killer, _victim)
 	_posed = {}
+	if _framing == null and kv.rules.camera == GSKillViewRules.Camera.BEHIND:
+		# Built here, ahead of the replay's first frame, which is already the heaviest one (the view switch).
+		_framing = GSKillcamFraming.new(camera.get_world_3d(), int(stage.get(&"world_mask")) if stage != null else 1)
 	if _framing != null:
 		_framing.reset()
 	var res := kv.play_clip(clip, info)

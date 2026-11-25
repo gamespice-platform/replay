@@ -117,6 +117,17 @@ var _again: Array = []
 var _reposed_at: int = -1
 var _posed_after: int = -2
 var _reposing: bool = false
+# Player id -> node, kept for one replay so a pose does not call player_for_fn for every body every frame.
+var _nodes: Dictionary = {}
+## Bodies well outside the replay camera's view (and farther than [constant CULL_NEAR]) are placed but not
+## redrawn with their recorded pose that frame; the next frame in view draws it. 0 poses every body.
+var cull_unseen: bool = true
+## Bodies left unposed by [member cull_unseen] since the host was made.
+var poses_culled: int = 0
+## A body nearer than this (metres) to the camera is always posed.
+const CULL_NEAR := 5.0
+## Degrees added to the view's half-diagonal before a body counts as outside it.
+const CULL_MARGIN_DEG := 25.0
 
 
 func _ready() -> void:
@@ -299,7 +310,13 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 	var alpha: float = s["alpha"]
 	var behind := int(camera_mode_fn.call()) == GSKillViewRules.Camera.BEHIND
 	var drawn := poses.sample(float(s["time"])) if apply_pose_fn.is_valid() and s.has("time") else {}
-	_again = [s, killer_id, victim_id]
+	# Empty until the replay's first pose: that frame's current camera is still the game's, not the replay's.
+	var first := _again.is_empty()
+	if _again.size() != 3:
+		_again.resize(3)
+	_again[0] = s
+	_again[1] = killer_id
+	_again[2] = victim_id
 	if not _reposing and _reposed_at == Engine.get_process_frames():
 		_posed_after = _reposed_at
 	var out := {}
@@ -307,8 +324,9 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 	var drawn_b: Dictionary = drawn.get("b", {})
 	var drawn_alpha := float(drawn.get("alpha", 0.0))
 	var half := alpha >= 0.5
+	var cull := _cull_view() if cull_unseen and not first and not drawn_a.is_empty() else []
 	for id: Variant in b:
-		var p := _player(id)
+		var p := _cached_player(id)
 		if p == null:
 			continue
 		var rb: Array = b[id]
@@ -331,9 +349,48 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 				out["target"] = feet + Vector3(0.0, 1.2, 0.0)
 			_place(p, feet, yaw, alive, pitch, speed)
 			if alive:
-				_apply_pose(p, id, drawn_a, drawn_b, drawn_alpha)
+				if not cull.is_empty() and _unseen(cull, feet):
+					poses_culled += 1
+				else:
+					_apply_pose(p, id, drawn_a, drawn_b, drawn_alpha)
 			_event(p, ra, rb, alpha, id == victim_id)
 	return out
+
+
+func _cached_player(id: Variant) -> Node:
+	var p: Variant = _nodes.get(id)
+	if p is Node and is_instance_valid(p):
+		return p as Node
+	var found := _player(id)
+	if found != null:
+		_nodes[id] = found
+	return found
+
+
+## [origin, forward, cos of the half-angle a body must be inside] of the camera last frame drew, or [] when none is
+## known.
+func _cull_view() -> Array:
+	var vp := get_viewport() if is_inside_tree() else null
+	var cam := vp.get_camera_3d() if vp != null else null
+	if cam == null:
+		return []
+	var size := vp.get_visible_rect().size
+	var tan_v := tan(deg_to_rad(cam.fov) * 0.5)
+	var tan_d := tan_v * sqrt(1.0 + (size.x / maxf(size.y, 1.0)) ** 2)
+	var half := atan(tan_d) + deg_to_rad(CULL_MARGIN_DEG)
+	if half >= PI * 0.5:
+		return []
+	var t := cam.global_transform
+	return [t.origin, -t.basis.z.normalized(), cos(half)]
+
+
+## Whether a body standing at [param feet] is outside the [method _cull_view] cone and farther than [constant CULL_NEAR].
+func _unseen(view: Array, feet: Vector3) -> bool:
+	var d := feet + Vector3(0.0, 0.9, 0.0) - (view[0] as Vector3)
+	var len2 := d.length_squared()
+	if len2 < CULL_NEAR * CULL_NEAR:
+		return false
+	return (view[1] as Vector3).dot(d) < float(view[2]) * sqrt(len2)
 
 
 func _event(p: Node, ra: Array, rb: Array, alpha: float, is_victim: bool) -> void:
@@ -362,6 +419,7 @@ func place_camera(posed: Dictionary, base_fov: float, delta: float) -> Dictionar
 ## Puts back every body a replay moved.
 func restore_bodies() -> void:
 	_again.clear()
+	_nodes.clear()
 	for p: Variant in touched:
 		if is_instance_valid(p) and restore_body_fn.is_valid():
 			restore_body_fn.call(p, touched[p])
@@ -391,6 +449,8 @@ func describe_lines() -> PackedStringArray:
 	var out := buffer.describe_lines()
 	if pose_unchanged_fn.is_valid():
 		out.append("killcam poses: %d read, %d kept from the last read (body unchanged)" % [poses_read, poses_kept])
+	if poses_culled > 0:
+		out.append("killcam poses: %d left undrawn (body outside the replay camera's view)" % poses_culled)
 	if killcam != null:
 		out.append_array(killcam.describe_lines())
 	return out

@@ -3,8 +3,8 @@ extends Node
 ## GSKillcamBuffer and GSKillcam: the rewind picks the right frames, the kill is kept, the
 ## replay is slowed at the kill and bounded, a skip or a disabled killcam ends it at once.
 
-const SECTIONS := 8
-const CHECKS := 65
+const SECTIONS := 9
+const CHECKS := 70
 const STEP := 1.0 / 60.0
 
 var _passed := 0
@@ -23,6 +23,7 @@ func _ready() -> void:
 	_test_host()
 	_test_pose_unchanged()
 	await _test_repose()
+	_test_cull()
 
 	print("")
 	print("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -460,6 +461,78 @@ func _test_repose() -> void:
 	h.queue_free()
 	killer.queue_free()
 	victim.queue_free()
+	_done()
+
+
+func _test_cull() -> void:
+	_section("GSKillcamHost leaves a body outside the replay camera's view undrawn, and looks its bodies up once")
+	var killer := FakeBody.new()
+	var behind := FakeBody.new()
+	var ahead := FakeBody.new()
+	var close := FakeBody.new()
+	var bodies: Array[FakeBody] = [killer, behind, ahead, close]
+	for b in bodies:
+		add_child(b)
+	# The killer looks down -Z from the origin.
+	behind.position = Vector3(0.0, 0.0, 30.0)
+	ahead.position = Vector3(0.0, 0.0, -30.0)
+	close.position = Vector3(0.0, 0.0, 3.0)
+	var clock := [0.0]
+	var lookups := [0]
+	var ids := {killer: &"k", behind: &"b", ahead: &"a", close: &"c"}
+	var by_id := {&"k": killer, &"b": behind, &"a": ahead, &"c": close}
+	var h := GSKillcamHost.new()
+	h.no_id = &""
+	h.players_fn = func() -> Array: return bodies
+	h.player_for_fn = func(id: StringName) -> Variant:
+		lookups[0] += 1
+		return by_id.get(id)
+	h.id_of_fn = func(p: Node) -> Variant: return ids[p]
+	h.state_fn = func(p: Node) -> Array: return [(p as Node3D).position, 0.0, 0.0, true, 1.6]
+	h.place_body_fn = func(p: Node3D, feet: Vector3, _y: float, shown: bool, _pi: float, _sp: float, touched: Dictionary) -> void:
+		if not touched.has(p):
+			touched[p] = [p.position, p.visible]
+		p.visible = shown
+		p.position = feet
+	h.restore_body_fn = func(p: Node3D, saved: Array) -> void:
+		p.position = saved[0]
+		p.visible = saved[1]
+	h.now_fn = func() -> float: return clock[0]
+	h.seconds_fn = func() -> float: return 7.0
+	h.pose_fn = func(_p: Node) -> PackedFloat32Array: return PackedFloat32Array([clock[0]])
+	var drawn := {}
+	h.apply_pose_fn = func(p: Node, _a: PackedFloat32Array, _b: PackedFloat32Array, _t: float) -> void:
+		drawn[p] = int(drawn.get(p, 0)) + 1
+	add_child(h)
+	h.killcam.auto_process = false
+	while clock[0] < 5.0:
+		clock[0] += STEP
+		h.frame()
+		if absf(clock[0] - 4.0) < STEP * 0.5:
+			h.note_kill(&"k", &"c", "rifle")
+	var _played := h.match_ended()
+	_check(drawn.get(behind, 0) == 1 and drawn.get(ahead, 0) == 1,
+		"the replay's first frame draws every body: the camera in use is still the game's (%d, %d)" % [drawn.get(behind, 0), drawn.get(ahead, 0)])
+	for i in 20:
+		h.killcam.advance(STEP)
+	_check(drawn.get(behind, 0) <= 2 and h.poses_culled >= 18,
+		"a far body behind the replay camera is not drawn again (%d draws, %d left undrawn)" % [drawn.get(behind, 0), h.poses_culled])
+	_check(drawn.get(ahead, 0) >= 20 and drawn.get(close, 0) >= 20,
+		"a body in view and a near one behind it are drawn every frame (%d, %d)" % [drawn.get(ahead, 0), drawn.get(close, 0)])
+	var looked: int = lookups[0]
+	for i in 10:
+		h.killcam.advance(STEP)
+	_check(lookups[0] == looked, "the bodies are looked up once for a replay, not every frame (%d more)" % (lookups[0] - looked))
+	h.skip()
+	h.cull_unseen = false
+	drawn.clear()
+	var _again_played := h.match_ended()
+	for i in 4:
+		h.killcam.advance(STEP)
+	_check(drawn.get(behind, 0) >= 3, "with cull_unseen off every body is drawn (%d)" % drawn.get(behind, 0))
+	h.queue_free()
+	for b in bodies:
+		b.queue_free()
 	_done()
 
 
