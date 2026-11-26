@@ -6,6 +6,6 @@ extends RefCounted
 # 4: GSKillcamFraming, mp_killview_camera. 5: GSKillViewServer/Client, Clip.pack/unpack. 6: GSKillcamHost.
 # 7: Host pose_fn/apply_pose_fn/poses, mp_killview_pose_hz, clip v3 (AUX 12). 8: GSKillcamHost.event_fn. 9: GSKillcam.wait_for_frames (a kill view clip starts at once). 10: Host.pose_unchanged_fn.
 # 11: Host.repose() (skipped while a replay posing after it will draw over it), Host.cull_unseen. 12: Host.always_posed.
-# 13: GSKillViewRing.is_due / cache_newest, GSKillViewServer.due (an eyes_fn builds only the eyes the ring keeps).
+# 13: GSKillViewRing.is_due / cache_newest, GSKillViewServer.eye_due (an eyes_fn builds only the eyes the ring keeps).
 const LEVEL := 13
 const OLDEST := 1

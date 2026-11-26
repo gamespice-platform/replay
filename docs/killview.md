@@ -26,7 +26,7 @@ The lower pieces (`GSKillViewRing`, `GSKillViewPlayer`) stay public for a game t
 
 With GameSpice Sim's native library loaded (`GSSimKillViewTrack`, its `killview` module), each entity's ring builds and stores its rows natively, the same bits as the script `_Track` (`examples/killview_selftest`, "GameSpice Sim's native track keeps the script's rows to the bit"); `GSKillViewRing.native_track = false` keeps the script path. Without the library (the web build), the script path runs unchanged.
 
-The ring answers its rate check from a script-side copy of each entity's newest sample time (`GSKillViewRing.cache_newest`, false asks the track as before; the same samples either way, "The rate check from the cached newest time..."). At 66 ticks and 30 Hz the ring refuses two eyes in three, so an `eyes_fn` should ask `kv.due(id)` before building an eye (its basis, fov, aux): true only for the eyes the ring keeps at this `record`, and true for every eye outside `record`.
+The ring answers its rate check from a script-side copy of each entity's newest sample time (`GSKillViewRing.cache_newest`, false asks the track as before; the same samples either way, "The rate check from the cached newest time..."). At 66 ticks and 30 Hz the ring refuses two eyes in three, so an `eyes_fn` should ask `kv.eye_due(id)` before building an eye (its basis, fov, aux): true only for the eyes the ring keeps at this `record`, and true for every eye outside `record`.
 
 ## Cvars
 

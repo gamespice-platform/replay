@@ -4,7 +4,7 @@ extends Node
 ## victim plays slowed at the kill, Space skips and respawns, and the cvars drive all of it.
 
 const SECTIONS := 12
-const CHECKS := 103
+const CHECKS := 104
 const STEP := 1.0 / 60.0
 
 var _passed := 0
@@ -526,7 +526,7 @@ func _test_due() -> void:
 	cached.forget("e0")
 	_check(cached.is_due("e0", 0.0) and not cached.is_due(1, 400.0 / 60.0), "a forgotten entity is due at once, a fresh sample holds the next back")
 	GSKillViewRing.cache_newest = was
-	# The server's due(): an eyes_fn that builds only due eyes records what one building every eye does.
+	# The server's eye_due(): an eyes_fn that builds only due eyes records what one building every eye does.
 	var built := [0]
 	var lazy := GSKillViewServer.new(_rules(true))
 	var eager := GSKillViewServer.new(_rules(true))
@@ -537,7 +537,7 @@ func _test_due() -> void:
 	lazy.eyes_fn = func() -> Array:
 		var out: Array = []
 		for id in 8:
-			if lazy.due(id):
+			if lazy.eye_due(id):
 				out.append(view.call(id, now[0]))
 		return out
 	eager.eyes_fn = func() -> Array:
@@ -558,10 +558,14 @@ func _test_due() -> void:
 		var a := lazy.ring.clip_for(id, 9.0)
 		var b := eager.ring.clip_for(id, 9.0)
 		same = same and a.ok and b.ok and (a.value["f"] as PackedFloat32Array).to_byte_array() == (b.value["f"] as PackedFloat32Array).to_byte_array()
-	_check(same and lazy.ring.sample_count(3) == eager.ring.sample_count(3), "asking due() keeps every sample building every eye does")
+	_check(same and lazy.ring.sample_count(3) == eager.ring.sample_count(3), "asking eye_due() keeps every sample building every eye does")
 	_check(lazy_built < built[0] / 2, "and builds under half the eyes at 66 ticks and 30 Hz (%d of %d)" % [lazy_built, built[0]])
-	_check(lazy.due(0), "outside record() every eye is due")
+	_check(lazy.eye_due(0), "outside record() every eye is due")
 	lazy.eyes_fn = Callable()  # the closure holds lazy: break the cycle
+	# FC's FcKillViewServer declares `var due` and `class Due`; a base method by either name broke its compile.
+	var sub := GDScript.new()
+	sub.source_code = "extends GSKillViewServer\nvar due: RefCounted = null\nclass Due:\n\textends RefCounted\n"
+	_check(sub.reload() == OK, "a subclass with its own `due` member still compiles")
 	_done()
 
 

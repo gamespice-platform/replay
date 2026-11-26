@@ -76,7 +76,9 @@ func record(time: float) -> void:
 ## For [member eyes_fn]: whether the ring keeps [param id]'s eye at this [method record]'s time, so
 ## the eye is built only then (at 66 ticks and 30 Hz, two ticks in three it would be built and refused).
 ## True outside [method record] (a test or a probe asking [member eyes_fn] gets every eye).
-func due(id: Variant) -> bool:
+## Not named [code]due[/code]: FC's subclass already has a member by that name. A closure that
+## captures this server and is stored in its own [member eyes_fn] is a cycle: clear [member eyes_fn] when done.
+func eye_due(id: Variant) -> bool:
 	return not _recording or ring.is_due(id, _now)
 
 
