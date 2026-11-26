@@ -226,7 +226,8 @@ func _player(id: Variant) -> Node:
 	if id == no_id or not player_for_fn.is_valid():
 		return null
 	var p: Variant = player_for_fn.call(id)
-	return p as Node if p is Node and is_instance_valid(p) else null
+	# Validity first: `is` on a freed body is a script error, not false.
+	return p as Node if is_instance_valid(p) and p is Node else null
 
 
 func _record() -> void:
@@ -281,7 +282,7 @@ func _on_started(_kill: Dictionary) -> void:
 		_framing.reset()
 	camera.make_current()
 	for n: Variant in hide_while_playing:
-		if n is Object and is_instance_valid(n) and (n as Object).get(&"visible") != null:
+		if is_instance_valid(n) and (n as Object).get(&"visible") != null:
 			_hidden[n] = bool((n as Object).get(&"visible"))
 			(n as Object).set(&"visible", false)
 	GSLog.info(log_channel, "final killcam", killcam.describe())
@@ -363,7 +364,8 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 
 func _cached_player(id: Variant) -> Node:
 	var p: Variant = _nodes.get(id)
-	if p is Node and is_instance_valid(p):
+	# Validity first: a cached body freed since (a bot kicked mid-replay) fails `is` with a script error.
+	if is_instance_valid(p) and p is Node:
 		return p as Node
 	var found := _player(id)
 	if found != null:

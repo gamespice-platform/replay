@@ -70,7 +70,7 @@ func _tick() -> int:
 		return int(tick_fn.call())
 	if _manager != null and "clock" in _manager:
 		var clock: Variant = _manager.get("clock")
-		if clock is Object and "tick" in (clock as Object):
+		if is_instance_valid(clock) and "tick" in (clock as Object):
 			return int((clock as Object).get("tick"))
 	return 0
 

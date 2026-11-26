@@ -95,7 +95,7 @@ func play(clip: Dictionary, info: Dictionary) -> bool:
 	GSLog.info(CHANNEL, "kill view started", {"killer": info.get("killer", ""), "weapon": info.get("weapon", "")})
 	if hide_fn.is_valid():
 		for n: Variant in hide_fn.call():
-			if n is Object and is_instance_valid(n) and (n as Object).get(&"visible") != null:
+			if is_instance_valid(n) and (n as Object).get(&"visible") != null:
 				_hidden[n] = bool((n as Object).get(&"visible"))
 				(n as Object).set(&"visible", false)
 	return true

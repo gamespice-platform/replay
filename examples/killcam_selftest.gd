@@ -3,8 +3,8 @@ extends Node
 ## GSKillcamBuffer and GSKillcam: the rewind picks the right frames, the kill is kept, the
 ## replay is slowed at the kill and bounded, a skip or a disabled killcam ends it at once.
 
-const SECTIONS := 9
-const CHECKS := 71
+const SECTIONS := 10
+const CHECKS := 74
 const STEP := 1.0 / 60.0
 
 var _passed := 0
@@ -21,6 +21,7 @@ func _ready() -> void:
 	_test_skip_and_disabled()
 	_test_icon()
 	_test_host()
+	_test_freed_body()
 	_test_pose_unchanged()
 	await _test_repose()
 	_test_cull()
@@ -338,6 +339,31 @@ func _test_host() -> void:
 	h.queue_free()
 	killer.queue_free()
 	victim.queue_free()
+	_done()
+
+
+func _test_freed_body() -> void:
+	_section("GSKillcamHost drops a cached body freed since, without a script error")
+	var first := FakeBody.new()
+	var second := FakeBody.new()
+	add_child(first)
+	add_child(second)
+	var by_id := {&"k": first}
+	var h := GSKillcamHost.new()
+	h.no_id = &""
+	h.player_for_fn = func(id: StringName) -> Variant: return by_id.get(id)
+	_check(h._cached_player(&"k") == first, "a body is found and cached")
+	# `is` before is_instance_valid on a freed body is a script error that aborts the lookup (FC headless_sim_host, #12480).
+	first.free()
+	by_id[&"k"] = second
+	_check(h._cached_player(&"k") == second, "a cached body freed since is looked up again")
+	var gone := FakeBody.new()
+	gone.free()
+	by_id[&"k"] = gone
+	h._nodes.clear()
+	_check(h._player(&"k") == null, "a freed body handed back by player_for_fn reads as none")
+	h.free()
+	second.queue_free()
 	_done()
 
 
