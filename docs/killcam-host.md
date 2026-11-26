@@ -22,6 +22,8 @@ Call `host.frame()` once a frame after the bodies are presented, `host.note_kill
 
 While a replay runs, `frame()` (or `repose()` on a frame that does not record) redraws the last pose over what presentation drew. When the replay's own `frame_drawn` posed the bodies after that call on the previous frame (the host's killcam, or a kill view whose `stage` is this host, processing after the caller), the redraw is skipped: it would be drawn over again in the same frame.
 
+With `cull_unseen` (on by default) a body farther than `CULL_NEAR` and outside the replay camera's view (plus `CULL_MARGIN_DEG`) is placed but not posed that frame; `poses_culled` counts them. Ids in `always_posed` (keys of a Dictionary) are posed every frame anyway: a suite that compares every body's bones with the recording sets the bodies it compares there instead of turning culling off.
+
 ## Hooks
 
 | Hook | Default | For |

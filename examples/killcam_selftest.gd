@@ -4,7 +4,7 @@ extends Node
 ## replay is slowed at the kill and bounded, a skip or a disabled killcam ends it at once.
 
 const SECTIONS := 9
-const CHECKS := 70
+const CHECKS := 71
 const STEP := 1.0 / 60.0
 
 var _passed := 0
@@ -523,6 +523,12 @@ func _test_cull() -> void:
 	for i in 10:
 		h.killcam.advance(STEP)
 	_check(lookups[0] == looked, "the bodies are looked up once for a replay, not every frame (%d more)" % (lookups[0] - looked))
+	var before: int = drawn.get(behind, 0)
+	h.always_posed = {&"b": true}
+	for i in 4:
+		h.killcam.advance(STEP)
+	_check(int(drawn.get(behind, 0)) - before == 4, "a body in always_posed is drawn every frame although unseen (%d of 4)" % (int(drawn.get(behind, 0)) - before))
+	h.always_posed = {}
 	h.skip()
 	h.cull_unseen = false
 	drawn.clear()

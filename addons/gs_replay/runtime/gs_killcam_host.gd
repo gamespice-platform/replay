@@ -122,6 +122,10 @@ var _nodes: Dictionary = {}
 ## Bodies well outside the replay camera's view (and farther than [constant CULL_NEAR]) are placed but not
 ## redrawn with their recorded pose that frame; the next frame in view draws it. 0 poses every body.
 var cull_unseen: bool = true
+## Player ids (as keys) posed every frame even when [member cull_unseen] would leave them undrawn: a body the game
+## must have in its recorded pose although the replay camera is not looking at it (a suite comparing every body's
+## bones, a spectator's own view of one).
+var always_posed: Dictionary = {}
 ## Bodies left unposed by [member cull_unseen] since the host was made.
 var poses_culled: int = 0
 ## A body nearer than this (metres) to the camera is always posed.
@@ -349,7 +353,7 @@ func pose(s: Dictionary, killer_id: Variant, victim_id: Variant) -> Dictionary:
 				out["target"] = feet + Vector3(0.0, 1.2, 0.0)
 			_place(p, feet, yaw, alive, pitch, speed)
 			if alive:
-				if not cull.is_empty() and _unseen(cull, feet):
+				if not cull.is_empty() and not always_posed.has(id) and _unseen(cull, feet):
 					poses_culled += 1
 				else:
 					_apply_pose(p, id, drawn_a, drawn_b, drawn_alpha)
