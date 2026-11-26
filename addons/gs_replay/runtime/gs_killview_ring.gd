@@ -28,9 +28,16 @@ const NATIVE_TRACK_CLASS := &"GSSimKillViewTrack"
 static var native_track := true
 static var _native_known := -1
 
+## Answer the rate check from a script-side copy of each entity's newest sample time instead of
+## asking its track twice (two calls into the native class per eye); false asks the track (the A/B
+## baseline). The samples kept are the same either way (killview_selftest).
+static var cache_newest := true
+
 var rules: GSKillViewRules = null
 
 var _tracks: Dictionary = {}
+## id -> time of its newest kept sample, kept whatever [member cache_newest] says.
+var _newest: Dictionary = {}
 var _pending: Array[Dictionary] = []
 
 
@@ -41,7 +48,7 @@ func _init(p_rules: GSKillViewRules = null) -> void:
 ## Notes where [param id] looked at [param time]; [param cursor] is its crosshair in 0..1 screen
 ## space. False when off, too soon after the last sample (rate), or the entity table is full.
 func record(id: Variant, time: float, xform: Transform3D, fov: float, cursor: Vector2 = Vector2(0.5, 0.5), aux: PackedFloat32Array = PackedFloat32Array()) -> bool:
-	if not rules.enabled:
+	if not rules.enabled or not is_due(id, time):
 		return false
 	# A _Track or a NATIVE_TRACK_CLASS: the same methods.
 	var track: Object = _tracks.get(id)
@@ -50,10 +57,20 @@ func record(id: Variant, time: float, xform: Transform3D, fov: float, cursor: Ve
 			return false
 		track = _new_track(maxi(int(ceil(rules.history_seconds() * rules.record_hz)) + 2, 4))
 		_tracks[id] = track
-	if track.samples() > 0 and time - track.newest() < 1.0 / rules.record_hz - 0.0001:
-		return false
 	track.record(time, xform, fov, cursor if rules.include_cursor else Vector2.ZERO, aux)
+	_newest[id] = time
 	return true
+
+
+## Whether [method record] would keep a sample of [param id] at [param time] by the rate
+## ([member GSKillViewRules.record_hz]): true for an entity with none. Ask it before building a view
+## that may be refused. The table being full is not checked here.
+func is_due(id: Variant, time: float) -> bool:
+	if cache_newest:
+		var last: Variant = _newest.get(id)
+		return last == null or time - float(last) >= 1.0 / rules.record_hz - 0.0001
+	var track: Object = _tracks.get(id)
+	return track == null or track.samples() == 0 or time - float(track.newest()) >= 1.0 / rules.record_hz - 0.0001
 
 
 ## Whether the gs_sim extension provides [constant NATIVE_TRACK_CLASS]; asked once.
@@ -131,10 +148,12 @@ func clip_for(killer: Variant, kill_time: float, info: Dictionary = {}) -> GSRes
 
 func forget(id: Variant) -> void:
 	_tracks.erase(id)
+	_newest.erase(id)
 
 
 func clear() -> void:
 	_tracks.clear()
+	_newest.clear()
 	_pending.clear()
 
 

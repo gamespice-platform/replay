@@ -33,6 +33,10 @@ var ring: GSKillViewRing = null
 ## victim -> tick the respawn is held to.
 var _held: Dictionary = {}
 
+## The time of the [method record] call in progress, and whether one is.
+var _now: float = 0.0
+var _recording := false
+
 
 func _init(p_rules: GSKillViewRules = null) -> void:
 	rules = p_rules if p_rules != null else GSKillViewRules.new()
@@ -61,8 +65,19 @@ func use_respawn_queue(queue_fn: Callable, respawn_fn: Callable) -> void:
 func record(time: float) -> void:
 	if not rules.enabled or not eyes_fn.is_valid():
 		return
-	for e: Dictionary in eyes_fn.call():
+	_now = time
+	_recording = true
+	var eyes: Array = eyes_fn.call()
+	_recording = false
+	for e: Dictionary in eyes:
 		var _noted := ring.record(e["id"], time, e["transform"], float(e.get("fov", default_fov)), e.get("cursor", Vector2(0.5, 0.5)), e.get("aux", PackedFloat32Array()))
+
+
+## For [member eyes_fn]: whether the ring keeps [param id]'s eye at this [method record]'s time, so
+## the eye is built only then (at 66 ticks and 30 Hz, two ticks in three it would be built and refused).
+## True outside [method record] (a test or a probe asking [member eyes_fn] gets every eye).
+func due(id: Variant) -> bool:
+	return not _recording or ring.is_due(id, _now)
 
 
 ## A death: the killer's clip is cut once [member GSKillViewRules.post_seconds] have passed.

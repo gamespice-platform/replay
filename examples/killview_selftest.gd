@@ -3,8 +3,8 @@ extends Node
 ## The kill view: nothing is recorded while off, a killer's view (a bot's too) is cut into a clip the
 ## victim plays slowed at the kill, Space skips and respawns, and the cvars drive all of it.
 
-const SECTIONS := 11
-const CHECKS := 97
+const SECTIONS := 12
+const CHECKS := 103
 const STEP := 1.0 / 60.0
 
 var _passed := 0
@@ -26,6 +26,7 @@ func _ready() -> void:
 	_test_client()
 	_test_pov()
 	_test_native_rows()
+	_test_due()
 
 	print("")
 	print("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -496,6 +497,71 @@ func _test_native_rows() -> void:
 			if ra.to_byte_array() != rb.to_byte_array() or var_to_bytes(ta) != var_to_bytes(tb):
 				differ += 1
 	_check(differ == 0 and rows > 1000, "every row and time is the same bits (%d rows, %d differ)" % [rows, differ])
+	_done()
+
+
+func _test_due() -> void:
+	_section("The rate check from the cached newest time keeps the samples the tracks' own check does")
+	var rules := _rules(true)
+	rules.include_cursor = true
+	var was := GSKillViewRing.cache_newest
+	GSKillViewRing.cache_newest = false
+	var asked := GSKillViewRing.new(rules)
+	var asked_out := _record_seeded(asked)
+	GSKillViewRing.cache_newest = true
+	var cached := GSKillViewRing.new(rules)
+	var cached_out := _record_seeded(cached)
+	_check(asked_out == cached_out and asked_out.count(false) > 100, "both take and drop the same samples (%d taken, %d dropped)" % [asked_out.count(true), asked_out.count(false)])
+	var differ := 0
+	for id: Variant in asked._tracks:
+		var a: Object = asked._tracks[id]
+		var b: Object = cached._tracks.get(id)
+		if b == null or a.samples() != b.samples():
+			differ += 1
+			continue
+		for i: int in a.samples():
+			if a.row_at(i).to_byte_array() != b.row_at(i).to_byte_array() or var_to_bytes(a.time_at(i)) != var_to_bytes(b.time_at(i)):
+				differ += 1
+	_check(differ == 0 and asked.entity_count() == cached.entity_count(), "every row and time is the same bits (%d differ)" % differ)
+	cached.forget("e0")
+	_check(cached.is_due("e0", 0.0) and not cached.is_due(1, 400.0 / 60.0), "a forgotten entity is due at once, a fresh sample holds the next back")
+	GSKillViewRing.cache_newest = was
+	# The server's due(): an eyes_fn that builds only due eyes records what one building every eye does.
+	var built := [0]
+	var lazy := GSKillViewServer.new(_rules(true))
+	var eager := GSKillViewServer.new(_rules(true))
+	var view := func(id: int, at: float) -> Dictionary:
+		built[0] += 1
+		return {"id": id, "transform": Transform3D(Basis.from_euler(Vector3(0.0, at + id, 0.0)), Vector3(at, id, 0.0))}
+	var now := [0.0]
+	lazy.eyes_fn = func() -> Array:
+		var out: Array = []
+		for id in 8:
+			if lazy.due(id):
+				out.append(view.call(id, now[0]))
+		return out
+	eager.eyes_fn = func() -> Array:
+		var out: Array = []
+		for id in 8:
+			out.append(view.call(id, now[0]))
+		return out
+	for tick in 660:
+		now[0] = float(tick) / 66.0
+		lazy.record(now[0])
+	var lazy_built: int = built[0]
+	built[0] = 0
+	for tick in 660:
+		now[0] = float(tick) / 66.0
+		eager.record(now[0])
+	var same := true
+	for id in 8:
+		var a := lazy.ring.clip_for(id, 9.0)
+		var b := eager.ring.clip_for(id, 9.0)
+		same = same and a.ok and b.ok and (a.value["f"] as PackedFloat32Array).to_byte_array() == (b.value["f"] as PackedFloat32Array).to_byte_array()
+	_check(same and lazy.ring.sample_count(3) == eager.ring.sample_count(3), "asking due() keeps every sample building every eye does")
+	_check(lazy_built < built[0] / 2, "and builds under half the eyes at 66 ticks and 30 Hz (%d of %d)" % [lazy_built, built[0]])
+	_check(lazy.due(0), "outside record() every eye is due")
+	lazy.eyes_fn = Callable()  # the closure holds lazy: break the cycle
 	_done()
 
 
