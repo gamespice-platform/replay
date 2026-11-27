@@ -1,0 +1,25 @@
+# Runtime scripts checked by gs-ci scripts/check-gd-perf.py (tools/gd_perf_lint.py).
+# One fnmatch glob per line over tracked paths. Baseline: ci/efficiency/gd-perf.tsv.
+addons/gs_replay/bridge/gs_replay_event_tap.gd
+addons/gs_replay/bridge/gs_replay_net_tap.gd
+addons/gs_replay/core/gs_killview_rules.gd
+addons/gs_replay/core/gs_replay_chunk.gd
+addons/gs_replay/core/gs_replay_format.gd
+addons/gs_replay/core/gs_replay_record.gd
+addons/gs_replay/core/gs_replay_writer.gd
+addons/gs_replay/runtime/gs_killcam.gd
+addons/gs_replay/runtime/gs_killcam_banner.gd
+addons/gs_replay/runtime/gs_killcam_buffer.gd
+addons/gs_replay/runtime/gs_killcam_framing.gd
+addons/gs_replay/runtime/gs_killcam_host.gd
+addons/gs_replay/runtime/gs_killview_client.gd
+addons/gs_replay/runtime/gs_killview_clip.gd
+addons/gs_replay/runtime/gs_killview_player.gd
+addons/gs_replay/runtime/gs_killview_ring.gd
+addons/gs_replay/runtime/gs_killview_server.gd
+addons/gs_replay/runtime/gs_killview_solo.gd
+addons/gs_replay/runtime/gs_replay_player.gd
+addons/gs_replay/runtime/gs_replay_recorder.gd
+addons/gs_replay/runtime/gs_replay_ring.gd
+cold+: ^(_ready|_init|_enter_tree|_exit_tree|setup|configure|attach|detach|start|stop|open|close|finish|reset|clear|from_dict|to_dict|from_bytes|to_bytes|describe|summary|_on_.*)$
+cold+: ^(cvar_specs|follow_cvars|compression_name|evidence|present|play|_try_start|_finish|_malformed|_number|_flag)$
