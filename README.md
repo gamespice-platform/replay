@@ -104,8 +104,24 @@ GS_REPLAY_COMPRESSION=deflate <your server> --replay-ring-seconds=300
 
 Import the project once, then run `examples/replay_selftest.tscn` headless with Godot.
 
+## Used by
+
+These nine games vendor it:
+
+- [Fatal Contact](https://zeesgames.com/fatal-contact)
+- [Airdrift](https://zeesgames.com/airdrift)
+- [Buses From Hell](https://zeesgames.com/buses-from-hell)
+- [Smash Copter](https://zeesgames.com/smash-copter)
+- [Zombie Zone](https://zeesgames.com/zombie-zone)
+- [Prop Hunt](https://zeesgames.com/prop-hunt)
+- [Murder Mystery](https://zeesgames.com/murder-mystery)
+- [Deathrun](https://zeesgames.com/deathrun)
+- [Wipeout](https://zeesgames.com/wipeout)
+
+The whole collection is at [zeesgames.com](https://zeesgames.com).
+
 ## Status and licence
 
-Part of the [**GameSpice**](https://gamespice.net) platform: a family of Godot addons. Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/gamespice-platform/replay/issues) when you hit one.
+This is a GameSpice addon, MIT licensed and built with Claude Code. `replay_selftest` is the main headless scene, with `killcam_selftest`, `killview_selftest`, `net_selftest` and `cfg_selftest` beside it. [Zee's Games](https://zeesgames.com) are built on GameSpice addons and run on live servers, and nine of them vendor this addon. Report bugs on the [issue tracker](https://github.com/gamespice-platform/replay/issues).
 
 MIT licence, see [LICENSE](LICENSE). The only closed part of the [**GameSpice**](https://gamespice.net) platform is the web back end; you can use your own instead of GameSpice's.
